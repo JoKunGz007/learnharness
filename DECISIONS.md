@@ -7,6 +7,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-002 — 2026-10-26 — Pull upstream PRs #163, #157, #139, #127; skip the rest for now
 - D-003 — 2026-10-26 — Fork builds never auto-update from upstream
 - D-004 — 2026-10-26 — Orchestrator setup: lh-investigator, lh-implementer, lh-checker
+- D-005 — 2026-10-26 — Add the FSRS review page from fork wangdepin/MasteryHarness
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -31,3 +32,9 @@ Status: accepted
 Decision: `.claude/agents/lh-investigator.md` (session model, read-only), `lh-implementer.md` (Sonnet, `maxTurns: 60`), `lh-checker.md` (Sonnet, browser pane, edits nothing). Routing is in `CLAUDE.md` § Working as orchestrator.
 Rationale: Heavy reads (upstream PRs, test output) and browser checks fill the main context. On a Pro plan, subagents draw the same limits, so the routine roles use Sonnet. Measured in claude-usage D-024 / PLAN step 12.
 Evidence: `42a60e3`; `D:\Projects\claude-usage\DECISIONS.md` D-024.
+
+## D-005 — 2026-10-26 — Add the FSRS review page from fork wangdepin/MasteryHarness
+Status: accepted
+Decision: Cherry-pick `9f0d8a7b` (FSRS-6 via `ts-fsrs`; `/review`, `GET /api/review`; state derived from practice `conclude` events, nothing stored). Barrel conflicts resolved by keeping ours and adding only the review exports (the fork's code-exercise/Python exports are not in this commit). Fork fix `cc4b0ad`: `reviewPayload` resolves recorded target names to ids.
+Rationale: Upstream has no spaced repetition (parked in `docs/architecture.md`); this is self-contained and read-only. Cost: one more change to carry on upstream syncs.
+Evidence: `87a6e5a`, `cc4b0ad`; design in `docs/review-plan.md`; live check in `PLAN.md` checkpoint.

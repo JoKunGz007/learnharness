@@ -37,3 +37,21 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: seen while the pane was hidden or another overlay had focus; not reproduced as an app bug.
 - Avoid: use `find` refs with the pane visible, or set state via the API (`POST /api/connections/local/claude-code {"action":"enable","enabled":true}`, copy `data/settings.json`).
 - Verify: `GET /api/connections/local` shows `enabled:true, connected:true`.
+
+## `npm ci` while `next dev` runs half-deletes `node_modules`
+- Symptom: `npm error EPERM ... unlink ... lightningcss.win32-x64-msvc.node`; afterwards `npx tsc` fetches the bogus `tsc@2.0.4` package because `node_modules/.bin/tsc` is gone.
+- Cause: the dev server holds native `.node` files open; Windows refuses to delete them mid-`npm ci`.
+- Avoid: `preview_stop` the dev server (and close the packaged app) before `npm ci`; use `npx --no-install` so a missing binary fails instead of downloading.
+- Verify: `npm ci` exits 0 and `npx --no-install tsc --noEmit` runs.
+
+## Tool-call records keep the model's raw arguments
+- Symptom: code reading `problem.target` from a chat record finds names like `"Limit of a sequence"` instead of ids `n_…` (seen live on `claude-code`).
+- Cause: a tool's `prepareArguments` (e.g. name→id normalization in `src/agent/tools/practice.ts`) shapes only the executed call in pi-agent-core; the stored assistant message keeps what the model sent.
+- Avoid: readers of records resolve targets themselves (`resolveTargetId` in `src/core/chains.ts`), as `src/core/review.ts` does.
+- Verify: `tests/review.test.ts` "a target recorded by proposition NAME resolves to its id".
+
+## Teach sessions don't build the graph for a while
+- Symptom: after several Teach turns `GET /api/graph` still has no nodes and no extraction job appears.
+- Cause: auto-extraction fires at turn end only once the uncovered teacher prose (assistant text + `send_to_user`, chars/4) reaches `graph.extractionChunkTokens` (default 4096, `src/core/settings.ts`). Probe questions, learner text and tool results don't count. Same on every provider.
+- Avoid: press the manual Extract (`POST /api/graph/coverage/extract {"chatId":…}`) or lower the setting (`PLAN.md` § Next).
+- Verify: the graph fills ~1–2 min after the trigger.

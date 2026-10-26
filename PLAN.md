@@ -4,16 +4,18 @@ _The current state only, not a log. Over ~200 lines: move finished entries to `d
 
 ## Current checkpoint (2026-10-26)
 
-`main` = upstream `3dc8847` (0.3.8) + PR #151 + PRs #163, #157, #139, #127 + fork fixes; pushed to `origin` (private), head `d856cbf`.
+`main` = upstream `3dc8847` (0.3.8) + PR #151 + PRs #163, #157, #139, #127 + the MasteryHarness FSRS review page (`87a6e5a`, D-005) + fork fixes; pushed to `origin` (private), head `c240262`.
 
 - **Claude subscription backend works on Windows.** Dev server (`next dev`): Claude Code 2.1.302 detected (signed in, Pro, subscription auth); a Teach turn on `claude-haiku-4-5` returned a probe question. Packaged server (`dist/win-unpacked`, Electron's Node): two Teach turns; the second resumed the same CLI process (context 9.1k → 9.3k). Checked 2026-10-26 in the browser pane.
 - **Windows installer builds.** `dist/LearnHarness-0.3.8-x64-setup.exe` (168 MB, unsigned), 2026-10-26, build command in `CLAUDE.md` § Desktop app. The window started its server and logged `auto-update: fork build — updater disabled`. The installer itself was not run (only `dist/win-unpacked/LearnHarness.exe`).
 - **Checks, 2026-10-26:** `npx tsc --noEmit` clean. 41 related test files: 582/586 pass. `pdf-reader` + `file-access`: 26/26 after the #157 merge fixes. Remaining failures are Windows-only; see `GOTCHAS.md`.
-- **Not verified:** practice flow, a full teach session past the probe, the background-use toggle, Sonnet/Opus models, installer install/uninstall.
+- **FSRS review page works (2026-10-26).** Live on `claude-code` Haiku 4.5 in the dev server: a Teach session (5 learner messages, then the manual Extract) gave 5 propositions; a 1-problem Practice session concluded `solved`; `/review` listed "Limit of a sequence" under Upcoming, due in 2 days (stability 2.3). Needed fix `cc4b0ad` (targets recorded by name; see `GOTCHAS.md`). Tests: `review` 52/52, `review-events` 30/30, `render-review` 19/19, `practice-record` 36/36, `render-sidebar` 15/15; `npx tsc --noEmit` clean.
+- **Duplicate probe-handoff divider fixed** (`c240262`, `components/session-core.ts`): the view showed a server marker twice (React duplicate key `steer_probe_<chatId>`) until the idle sync. `session-core` 84/84 (the 2 new tests fail without the fix). Not re-checked live. Not fixed upstream as of 2026-10-26.
+- **Not verified:** the Hard/re-check review paths live (unit tests only), a node reaching Due now, practice past one problem, a full teach session to its end, the background-use toggle, Sonnet/Opus models, installer install/uninstall.
 
 ## Next
 1. Owner installs `dist/LearnHarness-0.3.8-x64-setup.exe` and uses it day to day. Done when a full Teach session runs from the Start-menu app.
-2. Optional: try the FSRS review page from fork wangdepin/MasteryHarness (`9f0d8a7b`, adds `ts-fsrs`). Cherry-pick conflicts only in `src/core/index.ts` and `src/server/index.ts`, and the fork's tests haven't been run here. Needs the owner's go-ahead.
+2. Owner choice: Teach sessions extract to the graph automatically only after ~4096 tokens of teacher prose (`GOTCHAS.md`). Options: lower `graph.extractionChunkTokens` in Settings (min 500), change the default in `src/core/settings.ts`, add a trigger at `probe_done`/session end, or keep it and use the manual Extract.
 3. When upstream moves: `git fetch upstream && git merge upstream/main`, re-run typecheck + related tests, rebuild the installer. If #151 merges upstream, drop our copy.
 
 ## Later / ideas
