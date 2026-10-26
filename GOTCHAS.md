@@ -55,3 +55,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: auto-extraction fires at turn end only once the uncovered teacher prose (assistant text + `send_to_user`, chars/4) reaches `graph.extractionChunkTokens` (default 4096, `src/core/settings.ts`). Probe questions, learner text and tool results don't count. Same on every provider.
 - Avoid: press the manual Extract (`POST /api/graph/coverage/extract {"chatId":…}`) or lower the setting (`PLAN.md` § Next).
 - Verify: the graph fills ~1–2 min after the trigger.
+
+## `claude -p` processes don't share the prompt cache by default
+- Symptom: every turn on `claude-code` re-writes the whole conversation to cache (a new process's first call reads only ~9k, the system prompt + tools).
+- Cause: Claude Code puts its session id and its cwd into the prompt; a random id or a fresh temp folder per process changes the prompt text early, and nothing after it matches. Also, the app renders the last message differently once it becomes history, so the previous turn's own breakpoint never lines up.
+- Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/local-agents/claude.ts`, and the `cacheBreak` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
+- Verify: in a chat record, a later turn's first call has `cacheRead` ≫ 9k and a small `cacheWrite`.
