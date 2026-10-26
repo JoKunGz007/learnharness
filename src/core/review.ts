@@ -22,6 +22,7 @@
  */
 
 import { createEmptyCard, fsrs, generatorParameters, Rating, type Card, type Grade } from "ts-fsrs";
+import { resolveTargetId } from "./chains.ts";
 import { getGraph } from "./graph.ts";
 import type { ChatStore, GraphStore } from "./ports.ts";
 import { reviewEventsFromMessages, type ReviewEvent } from "./review-events.ts";
@@ -186,8 +187,17 @@ export function reviewPayload(deps: ReviewDeps, now: number): ReviewPayload {
 		const record = deps.chatStore.getChat(summary.id);
 		if (record) events.push(...reviewEventsFromMessages(record.messages, summary.id));
 	}
-	const nodes = new Map(getGraph(deps.graphStore).nodes.map((n) => [n.id, n]));
-	const reviews = foldReviews(events, new Set(nodes.keys()));
+	const graphNodes = getGraph(deps.graphStore).nodes;
+	const nodes = new Map(graphNodes.map((n) => [n.id, n]));
+	// The record keeps the model's RAW target strings: the problem tool's
+	// name→id normalization (prepareArguments) shapes only the executed
+	// call, not the stored one — so resolve here, as the tool's validation
+	// does. Unresolvable targets keep their string and drop in the fold.
+	const resolved = events.map((e) => {
+		const id = resolveTargetId(e.nodeId, graphNodes);
+		return id && id !== e.nodeId ? { ...e, nodeId: id } : e;
+	});
+	const reviews = foldReviews(resolved, new Set(nodes.keys()));
 	const item = (r: NodeReview): ReviewItem => {
 		const node = nodes.get(r.nodeId)!;
 		return {

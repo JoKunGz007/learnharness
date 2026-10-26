@@ -331,6 +331,14 @@ describe("reviewPayload (GET /api/review)", () => {
 		assert.deepEqual([payload.due, payload.upcoming], [[], []]);
 	});
 
+	it("a target recorded by proposition NAME resolves to its id (the record keeps raw arguments)", () => {
+		const payload = reviewPayload(
+			deps([{ id: "s1", kind: "practice", messages: solved("a", " alpha ", T0) }], [node("n_a", "Alpha")]),
+			T0 + 100 * DAY,
+		);
+		assert.deepEqual(payload.due.map((i) => [i.id, i.reps]), [["n_a", 1]]);
+	});
+
 	it("a first failure in a practice session marks the node verifying across sessions", () => {
 		const day = (n: number) => T0 + n * DAY;
 		const good = (id: string, n: number) => solved(id, "n_a", day(n));
