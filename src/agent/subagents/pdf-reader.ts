@@ -171,10 +171,10 @@ export async function runPdfReaderAgent(
 	// The learner-filesystem gate (file-access wave): the same policy and
 	// home anchor as read/ls/find/grep — a refused or missing path fails
 	// upfront like any unreadable source.
-	let pdfPath = input.path;
+	let pdfPath = resolveSourcePath(input.path);
 	let openError: string | null;
 	try {
-		pdfPath = await guardSourcePath(resolveSourcePath(input.path));
+		pdfPath = await guardSourcePath(pdfPath);
 		// Deterministic upfront failure: unreadable / unparseable
 		// for renders — the brief never starts on a broken source.
 		openError = await probeReadable(pdfPath);
@@ -182,7 +182,7 @@ export async function runPdfReaderAgent(
 		openError = err instanceof Error ? err.message : String(err);
 	}
 	if (openError) {
-		return { path: input.path, question: input.question, brief: `PDF failed: ${openError}`, pagesRead: [], pagesConsulted: [] };
+		return { path: pdfPath, question: input.question, brief: `PDF failed: ${openError}`, pagesRead: [], pagesConsulted: [] };
 	}
 	// No Chrome gate (Wave E, 2026-10-10): pdf_render is native now
 	// (pdfjs paints into @napi-rs/canvas in-process) — the whole pdf-reader
@@ -249,7 +249,7 @@ export async function runPdfReaderAgent(
 					];
 					continue;
 				}
-				return { path: input.path, question: input.question, brief: finalText || "(no brief text)", pagesRead: [...read].sort((a, b) => a - b), pagesConsulted: [...consulted].sort((a, b) => a - b) };
+				return { path: pdfPath, question: input.question, brief: finalText || "(no brief text)", pagesRead: [...read].sort((a, b) => a - b), pagesConsulted: [...consulted].sort((a, b) => a - b) };
 			}
 
 			const toolResults: ToolResultMessage[] = [];
@@ -345,12 +345,12 @@ export async function runPdfReaderAgent(
 		}
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
-		return { path: input.path, question: input.question, brief: `PDF failed: the reader crashed — ${msg}`, pagesRead: [...read].sort((a, b) => a - b), pagesConsulted: [...consulted].sort((a, b) => a - b) };
+		return { path: pdfPath, question: input.question, brief: `PDF failed: the reader crashed — ${msg}`, pagesRead: [...read].sort((a, b) => a - b), pagesConsulted: [...consulted].sort((a, b) => a - b) };
 	}
 
 	// Iteration limit: deliver whatever was honestly consulted (never invention).
 	return {
-		path: input.path,
+		path: pdfPath,
 		question: input.question,
 		brief: finalText || `PDF failed: iteration limit (${maxIterations}) reached without a brief.`,
 		pagesRead: [...read].sort((a, b) => a - b),
