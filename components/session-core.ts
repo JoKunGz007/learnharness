@@ -393,6 +393,8 @@ export class SessionModel {
 					// live stream dropped the marker until the settle sync.
 					const mid = message.id;
 					if (mid === undefined) return false;
+					// Already adopted from the record: markers never change, keep that copy.
+					if (this.base.some((m) => m.id === mid)) return true;
 					this.mutate(() => {
 						const idx = this.tail.findIndex((m) => m.id === mid);
 						this.tail =
@@ -900,7 +902,11 @@ export class SessionModel {
 		this.mutate(() => {
 			this.base = record;
 			this.forgetResolvedDrafts(record);
-			this.tail = this.tail.filter((m) => !absorbed(m, record));
+			// A server-stamped marker the stream already put in the tail
+			// (steer_*: never absorbed — no c_ id) is now in the record too.
+			this.tail = this.tail.filter(
+				(m) => !recordIds.has((m as { id?: string }).id) && !absorbed(m, record),
+			);
 		});
 	}
 

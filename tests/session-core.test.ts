@@ -1323,6 +1323,26 @@ describe("adoptRecord — append-only adoption", () => {
 		assert.match(ids[2] ?? "", /^c_/, "the live streaming tail stays last (client slot id)");
 	});
 
+	it("a marker the stream put in the tail is not doubled when the record adopts it", () => {
+		const m = model({ initialMessages: [userText("u1", "topic")] });
+		const marker = { id: "steer_probe_x", role: "custom", customType: "probe-handoff", content: "next", display: true, details: { chatId: "x" }, timestamp: 2 };
+		m.applyWireEvent({ type: "message_start", message: marker } as never);
+		m.applyWireEvent({ type: "message_end", message: marker } as never);
+		m.adoptRecord([userText("u1", "topic"), marker as never]);
+		const ids = m.getState().nativeMessages.map((x) => x.id);
+		assert.equal(ids.filter((id) => id === "steer_probe_x").length, 1, "the marker appears once");
+	});
+
+	it("a marker already adopted from the record is not re-appended by a replayed wire event", () => {
+		const marker = { id: "steer_probe_x", role: "custom", customType: "probe-handoff", content: "next", display: true, details: { chatId: "x" }, timestamp: 2 };
+		const m = model({ initialMessages: [userText("u1", "topic")] });
+		m.adoptRecord([userText("u1", "topic"), marker as never]);
+		m.applyWireEvent({ type: "message_start", message: marker } as never);
+		m.applyWireEvent({ type: "message_end", message: marker } as never);
+		const ids = m.getState().nativeMessages.map((x) => x.id);
+		assert.equal(ids.filter((id) => id === "steer_probe_x").length, 1, "the marker appears once");
+	});
+
 	it("a missing base id (record rewrite) bails — the idle full sync is the net", () => {
 		const m = model({ initialMessages: [userText("u1", "a"), userText("u2", "b")] });
 		m.adoptRecord([userText("u2", "b")]); // u1 vanished: a rewrite, not an append
