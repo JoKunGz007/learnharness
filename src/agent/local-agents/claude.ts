@@ -52,7 +52,11 @@ export function claudeChildEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Pr
 
 function knownDirs(): string[] {
 	const home = os.homedir();
-	if (process.platform === "win32") return [path.join(home, ".local", "bin"), path.join(process.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "npm")];
+	if (process.platform === "win32") {
+		const npm = path.join(process.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "npm");
+		// npm installs only put a claude.cmd shim on PATH; the native claude.exe sits inside the package.
+		return [path.join(home, ".local", "bin"), npm, path.join(npm, "node_modules", "@anthropic-ai", "claude-code", "bin")];
+	}
 	return [path.join(home, ".local", "bin"), path.join(home, ".claude", "local"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".npm-global", "bin"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin")];
 }
 
