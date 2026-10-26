@@ -8,6 +8,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-003 — 2026-10-26 — Fork builds never auto-update from upstream
 - D-004 — 2026-10-26 — Orchestrator setup: lh-investigator, lh-implementer, lh-checker
 - D-005 — 2026-10-26 — Add the FSRS review page from fork wangdepin/MasteryHarness
+- D-006 — 2026-10-26 — Plan usage from Claude Code's stream, shown next to the model picker
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -38,3 +39,10 @@ Status: accepted
 Decision: Cherry-pick `9f0d8a7b` (FSRS-6 via `ts-fsrs`; `/review`, `GET /api/review`; state derived from practice `conclude` events, nothing stored). Barrel conflicts resolved by keeping ours and adding only the review exports (the fork's code-exercise/Python exports are not in this commit). Fork fix `cc4b0ad`: `reviewPayload` resolves recorded target names to ids.
 Rationale: Upstream has no spaced repetition (parked in `docs/architecture.md`); this is self-contained and read-only. Cost: one more change to carry on upstream syncs.
 Evidence: `87a6e5a`, `cc4b0ad`; design in `docs/review-plan.md`; live check in `PLAN.md` checkpoint.
+
+## D-006 — 2026-10-26 — Plan usage from Claude Code's stream, shown next to the model picker
+Status: accepted
+Decision: Read the 5-hour and weekly utilization from the `rate_limit_event` line `claude -p` emits each turn (`rate_limit_info.unifiedWindows.{five_hour,seven_day}.{utilization,resetsAt}`), keep the latest in memory (`src/agent/local-agents/plan-usage.ts`), serve it at `GET /api/connections/local/usage`, and show `5h N% · 7d N%` before the model picker (`components/plan-usage-badge.tsx`), coloured as the cache-timer mod does (green < 50, amber < 80, red ≥ 80; `#7FB77E` / `#E0A04A` / `#E0664A`). Hover gives reset times and the reading's age. Owner choices: placement, both windows, the cache-timer colours.
+Rationale: No token handling, no extra calls: the CLI already reports it. Rejected: the undocumented `api/oauth/usage` endpoint with the CLI token (breaks D-001: the app would hold a claude.ai token); reading the cache-band mod's `usage.json` (only fresh while an interactive Claude Code session runs; LearnHarness's CLI runs load no plugins).
+Consequences: The fields are undocumented: a CLI change hides the badge, nothing breaks. In memory only: empty after an app restart until the first turn. Account-wide (includes Claude Code and claude.ai use).
+Evidence: `b857678`; `tests/plan-usage.test.ts`, `tests/render-plan-usage.test.tsx`; live dev-server turn showed `5h 31% · 7d 57%`.
