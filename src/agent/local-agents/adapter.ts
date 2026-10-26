@@ -26,6 +26,8 @@ export interface OpenRequest {
 	systemPrompt: string;
 	tools: BridgeTool[];
 	bridge: ToolBridge;
+	/** The caller's conversation key (the chat id, or one per background job): stable across turns. */
+	sessionKey: string;
 }
 
 /** One locally installed runtime (Claude Code, the Antigravity ACP server). */

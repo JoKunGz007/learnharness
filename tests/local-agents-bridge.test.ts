@@ -129,7 +129,7 @@ test("the transcript replays history once, then the new learner input as plain b
 	assert.equal((blocks[1] as { text: string }).text, "<user>\nfirst\n</user>");
 	assert.equal((blocks[2] as { text: string }).text, '<assistant>\nhello\n<tool_call id="t1" name="quiz">{"q":1}</tool_call>\n</assistant>');
 	assert.equal((blocks[3] as { text: string }).text, '<tool_result id="t1" name="quiz" status="ok">\nB\n</tool_result>');
-	assert.deepEqual(blocks[4], { type: "text", text: "[image omitted: image/png]" });
+	assert.deepEqual(blocks[4], { type: "text", text: "[image omitted: image/png]", cacheBreak: true }, "the last history block carries the cache bookmark");
 	assert.deepEqual(blocks.at(-1), { type: "text", text: "next" });
 	assert.deepEqual(renderTranscript([{ role: "user", content: "only", timestamp: 0 }], { images: true }), [{ type: "text", text: "only" }]);
 });

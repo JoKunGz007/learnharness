@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -121,10 +122,16 @@ export function claudeEffort(level: ThinkingLevel | undefined): { args: string[]
 	return { args: ["--effort", level === "minimal" ? "low" : level], env: {} };
 }
 
+// 1h matches the TTL Claude Code uses for its own breakpoints (a shorter one may not precede a longer one).
+const CACHE_BREAK = { cache_control: { type: "ephemeral", ttl: "1h" } };
+
 function toClaudeContent(blocks: PromptBlock[]) {
-	return blocks.map((block) => block.type === "image"
-		? { type: "image", source: { type: "base64", media_type: block.mimeType, data: block.data } }
-		: { type: "text", text: block.text });
+	return blocks.map((block) => ({
+		...(block.type === "image"
+			? { type: "image", source: { type: "base64", media_type: block.mimeType, data: block.data } }
+			: { type: "text", text: block.text }),
+		...(block.cacheBreak ? CACHE_BREAK : {}),
+	}));
 }
 
 interface BlockState { kind: "text" | "thinking" | "tool_use" | "other"; id?: string; name?: string; json: string }
@@ -196,10 +203,25 @@ export function claudeLineHandler(run: LocalRun, expectBridge: boolean) {
 	};
 }
 
+/**
+ * Claude Code writes its session id into the prompt, so a fresh random id per
+ * process made every turn miss the prompt cache from the start and re-write
+ * the whole conversation. A stable id per conversation key keeps the prefix
+ * identical across turns (persistence stays off; the id is never resumed).
+ */
+export function claudeSessionId(key: string): string {
+	if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) return key.toLowerCase();
+	const h = createHash("sha256").update(`learnharness:${key}`).digest("hex");
+	return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16]!, 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 function openClaude(run: LocalRun, request: OpenRequest): RunSession {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lh-claude-"));
-	const cwd = path.join(dir, "workspace");
-	fs.mkdirSync(cwd, { mode: 0o700 });
+	// One fixed empty working folder for every run: Claude Code puts its cwd in
+	// the prompt, so a per-run folder broke the prompt cache like a random
+	// session id did. Nothing is written there (--tools ""); per-run files stay in `dir`.
+	const cwd = path.join(os.tmpdir(), "learnharness-claude-workspace");
+	fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
 	const systemFile = path.join(dir, "system-prompt.txt");
 	fs.writeFileSync(systemFile, request.systemPrompt, { mode: 0o600 });
 	const effort = claudeEffort(request.level);
@@ -207,7 +229,8 @@ function openClaude(run: LocalRun, request: OpenRequest): RunSession {
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
 		"--model", request.model.id, ...effort.args,
 		"--tools", "", "--setting-sources", "", "--disable-slash-commands", "--strict-mcp-config",
-		"--permission-mode", "dontAsk", "--no-session-persistence", "--system-prompt-file", systemFile,
+		"--permission-mode", "dontAsk", "--no-session-persistence", "--session-id", claudeSessionId(request.sessionKey),
+		"--system-prompt-file", systemFile,
 	];
 	const expectBridge = request.tools.length > 0;
 	if (expectBridge) {

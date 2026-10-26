@@ -13,7 +13,10 @@ import type { AssistantMessage, ImageContent, Message, TextContent, ToolResultMe
  * blocks after the history, so the model answers it directly.
  */
 
-export type PromptBlock = TextContent | ImageContent;
+/** `cacheBreak`: a prompt-cache bookmark after this block (the end of the
+ *  re-sent history), so the next turn's seed, which starts with the same
+ *  history, reads it back instead of re-writing it. */
+export type PromptBlock = (TextContent | ImageContent) & { cacheBreak?: boolean };
 
 const PREAMBLE = [
 	"The conversation so far is reproduced below, oldest first. Each earlier message is wrapped in a tag naming its author;",
@@ -65,9 +68,10 @@ export function renderTranscript(messages: readonly Message[], options: { images
 			else if (message.role === "assistant") { const block = assistantBlock(message); if (block) blocks.push(block); }
 			else if (message.role === "toolResult") blocks.push(...toolResultBlocks(message));
 		}
+		blocks[blocks.length - 1] = { ...blocks[blocks.length - 1]!, cacheBreak: true };
 	}
 	if (current.length > 0) for (const message of current) blocks.push(...userBlocks(message, false));
 	else if (history.length > 0) blocks.push({ type: "text", text: "Continue from the latest tool results above." });
-	const filtered = options.images ? blocks : blocks.map((block) => block.type === "image" ? { type: "text" as const, text: `[image omitted: ${block.mimeType}]` } : block);
+	const filtered = options.images ? blocks : blocks.map((block) => block.type === "image" ? { type: "text" as const, text: `[image omitted: ${block.mimeType}]`, ...(block.cacheBreak ? { cacheBreak: true } : {}) } : block);
 	return filtered.length ? filtered : [{ type: "text", text: "Continue." }];
 }

@@ -88,7 +88,7 @@ export function localAgentStream(providerId: LocalAgentProviderId, background: (
 				const bridge = await startToolBridge({ tools: () => run.tools, call: (request) => run.onBridgeCall(request) });
 				if (run.closed) { void bridge.close(); return; }
 				run.bridge = bridge;
-				const session = await adapter.open(run, { binary, model, level, systemPrompt, tools, bridge });
+				const session = await adapter.open(run, { binary, model, level, systemPrompt, tools, bridge, sessionKey: key });
 				if (run.closed) { session.dispose(); return; }
 				run.session = session;
 				session.start(renderTranscript(messages, { images: adapter.images && model.input.includes("image") }));
