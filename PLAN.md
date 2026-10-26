@@ -24,3 +24,6 @@ _The current state only, not a log. Over ~200 lines: move finished entries to `d
 - #142 (retry last reply): 4 conflicts. #150 (say tool): only if lessons collapse into one-line gists on the Claude path.
 - Anki sync (AnkiConnect): nothing exists yet (upstream issues #11, #33).
 - Make `tests/local-agents-*.test.ts` run on Windows (wrap the `.mjs` fakes in a `.cmd`/`.exe` launcher).
+- Report the `claude-code` prompt-cache bug (random session id + temp cwd per process, no history breakpoint) to pdomenico on upstream PR #151, with the numbers in `GOTCHAS.md`; drop our fix if theirs lands.
+- Context denominator: read `modelUsage.contextWindow` from the CLI's `result` line instead of the pi-ai catalog (`components/stats-bar.tsx`), so `/ 200k` matches what Claude Code actually uses.
+- Model slots (owner's call, not set): suggested Strong = Sonnet 5 medium, Cheap = Haiku 5.5 medium, Vision = Sonnet 5 medium; Cheap runs background extraction, now 4× as often at budget 1024. Compaction threshold 150k is optional to lower.
