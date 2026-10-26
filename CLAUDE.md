@@ -60,6 +60,10 @@ This session plans, decides, talks to the user and integrates. Subagents do the 
 - Inline: small edits, short commands, reading one known file, anything needing the user.
 - Subagents don't edit docs or commit; record findings here yourself.
 
+## Continuity docs
+
+Start at `PLAN.md` § Current checkpoint, then `DECISIONS.md` / `GOTCHAS.md` as the task needs. Each fact has one home; link, don't copy. No `HANDOFF.md`: session handoffs are `/handoff` notes in the temp folder. After substantive work, run `/sync-continuity`. (Upstream's `docs/plan.md` is the maintainer's, not ours.)
+
 ## Owner
 
 CEDT student (Chulalongkorn), Windows 11, GitHub JoKunGz007. Wants concise, arithmetic-first answers, no lecturing. Separate from the coursework repo `D:\Projects\cedt` — never touch it from here.
