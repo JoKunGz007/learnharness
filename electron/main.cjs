@@ -509,19 +509,21 @@ function setupAutoUpdater() {
 		reportUpdateStatus("disabled");
 		return;
 	}
-	try {
-		autoUpdater = require("electron-updater").autoUpdater;
-	} catch (err) {
-		log(`auto-update: electron-updater unavailable (${err?.message ?? err}) — updates disabled`);
-		reportUpdateStatus("disabled");
-		return;
-	}
 	const feed = process.env.LH_UPDATE_FEED;
 	// Fork build (JoKunGz007/learnharness): upstream's releases lack the
 	// Claude Code connection, so never update from them. Update by
 	// rebuilding from the fork; LH_UPDATE_FEED still opts in explicitly.
+	// Gate BEFORE loading the updater: with autoUpdater unset, the startup
+	// and interval checks are no-ops (they still hit GitHub otherwise).
 	if (!feed) {
 		log("auto-update: fork build — updater disabled (rebuild from the fork)");
+		reportUpdateStatus("disabled");
+		return;
+	}
+	try {
+		autoUpdater = require("electron-updater").autoUpdater;
+	} catch (err) {
+		log(`auto-update: electron-updater unavailable (${err?.message ?? err}) — updates disabled`);
 		reportUpdateStatus("disabled");
 		return;
 	}
