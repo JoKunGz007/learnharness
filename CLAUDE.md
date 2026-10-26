@@ -11,7 +11,7 @@ Goal of the fork: run it on the owner's **Claude subscription** (Claude Code log
 ## Remotes and branches
 
 - `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private). `pdomenico` = source of the Claude backend.
-- `main` = upstream main + upstream PR #151 (pdomenico, `feat/local-agent-connections`) + our fixes. Sync: `git fetch upstream && git merge upstream/main`. If #151 is merged upstream, drop our copy in favour of theirs.
+- `main` = upstream main + upstream PR #151 (pdomenico, `feat/local-agent-connections`) + upstream PRs #163, #157, #139, #127 + our fixes. Sync: `git fetch upstream && git merge upstream/main`. If #151 is merged upstream, drop our copy in favour of theirs.
 - AGPL: if this is ever offered to others over a network, the source must be offered too. Personal use: no obligation.
 
 ## Claude subscription backend (from PR #151)
@@ -33,6 +33,20 @@ Then Settings → Providers → Subscriptions → **Claude (local)** → enable,
 - `npm test` uses POSIX env syntax; from Git Bash run `NODE_ENV=test npx tsx --test tests/<file>.test.ts`. Typecheck: `npx tsc --noEmit`.
 - Known Windows test failures: `tests/local-agents-*.test.ts` (8) use `.mjs` fakes as the CLI binary, which Windows can't execute; plus upstream's POSIX file-mode assertions.
 - App data: `data/` (gitignored). Long command output → `.tmp/out.log` (gitignored), then grep/tail.
+
+## Desktop app (Windows installer)
+
+Build from Git Bash (~10 min; stop any `next dev` first, it shares `.next`):
+
+```bash
+rm -rf dist .next/standalone && npx next build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && npx electron-builder --win --x64 --publish never
+```
+
+- Output: `dist/LearnHarness-<ver>-x64-setup.exe` (unsigned: SmartScreen → More info → Run anyway). Data lives in `%APPDATA%\LearnHarness` (log: `logs\main.log`), separate from the dev server's `data/`.
+- **Auto-update is off in fork builds** (`setupAutoUpdater` in `electron/main.cjs`): upstream releases lack the Claude connection and would replace it. Update = pull upstream, rebuild, reinstall. `LH_UPDATE_FEED` opts back in. `electron-builder.yml` `publish.owner` points at the fork so a manual publish never targets upstream.
+- Test the packaged server without the window: from `dist/win-unpacked/resources/server/standalone`, `ELECTRON_RUN_AS_NODE=1 PORT=3123 LH_DATA_DIR=<tmp>/data LH_AUTH_FILE=<tmp>/auth.json ../../../LearnHarness.exe server.js`. (The window's own server needs a per-launch secret header.)
+- Upstream PR #159 (auto-update toggle) is already in upstream main (`769fc85`); don't merge it.
+- Verified 2026-10-26: packaged server ran two Teach turns on `claude-code` Haiku 4.5 (second turn resumed the same CLI process); the window started, server up, updater disabled.
 
 ## Working as orchestrator (usage limits)
 

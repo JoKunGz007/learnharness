@@ -517,6 +517,14 @@ function setupAutoUpdater() {
 		return;
 	}
 	const feed = process.env.LH_UPDATE_FEED;
+	// Fork build (JoKunGz007/learnharness): upstream's releases lack the
+	// Claude Code connection, so never update from them. Update by
+	// rebuilding from the fork; LH_UPDATE_FEED still opts in explicitly.
+	if (!feed) {
+		log("auto-update: fork build — updater disabled (rebuild from the fork)");
+		reportUpdateStatus("disabled");
+		return;
+	}
 	if (feed) {
 		autoUpdater.setFeedURL({ provider: "generic", url: feed });
 		log(`auto-update: LH_UPDATE_FEED override → ${feed}`);
