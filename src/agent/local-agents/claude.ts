@@ -8,6 +8,7 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { appHeldEnvVars, resolveBinary } from "./binaries.ts";
 import { BRIDGE_SERVER_NAME, CLAUDE_TOOL_PREFIX } from "./mcp-server.ts";
 import type { AdapterProbe, LocalAgentAdapter, OpenRequest } from "./adapter.ts";
+import { parseRateLimitInfo, recordPlanUsage } from "./plan-usage.ts";
 import type { LocalRun, RunSession } from "./run.ts";
 import type { PromptBlock } from "./transcript.ts";
 
@@ -142,6 +143,12 @@ export function claudeLineHandler(run: LocalRun, expectBridge: boolean) {
 		if (message.type === "result") {
 			if (message.is_error || message.subtype !== "success") run.fail(String(message.result || message.subtype || "Claude Code request failed."));
 			else run.endTurn("stop");
+			return;
+		}
+		if (message.type === "rate_limit_event") {
+			// Plan usage (5h / 7d), once per turn; undocumented, parsed defensively.
+			const reading = parseRateLimitInfo(message.rate_limit_info);
+			if (reading) recordPlanUsage(PROVIDER, reading);
 			return;
 		}
 		if (message.type !== "stream_event") return;

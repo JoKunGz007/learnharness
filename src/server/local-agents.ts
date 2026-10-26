@@ -5,7 +5,7 @@
  * (model-catalog.ts imports it, so every catalog/engine consumer is wired).
  */
 import { LOCAL_AGENTS, type LocalAgentAction, type LocalAgentProviderId, type LocalAgentStatus } from "../core/contracts/local-agents.ts";
-import { cancelLocalAgentSignIn, configureAppHeldEnvVars, configureLocalAgentPreferences, localAgentStatuses, refreshLocalAgents, setLocalAgentPreferences, signInLocalAgent } from "../agent/local-agents/index.ts";
+import { cancelLocalAgentSignIn, configureAppHeldEnvVars, configureLocalAgentPreferences, localAgentStatuses, planUsage, refreshLocalAgents, setLocalAgentPreferences, signInLocalAgent } from "../agent/local-agents/index.ts";
 import { authStore } from "../store/auth.ts";
 import { localAgentPreferenceStore } from "../store/local-agents.ts";
 
@@ -20,6 +20,11 @@ export function isLocalAgentId(value: string): value is LocalAgentProviderId {
 export async function localAgentConnections(force = false): Promise<LocalAgentStatus[]> {
 	await refreshLocalAgents({ force });
 	return localAgentStatuses();
+}
+
+/** Latest Claude plan-usage reading (null until a turn has reported one). */
+export function localAgentPlanUsage() {
+	return { "claude-code": planUsage("claude-code") };
 }
 
 /** Shape-gate a POST body; null = 400. */

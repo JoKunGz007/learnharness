@@ -23,3 +23,4 @@ export {
 } from "./state.ts";
 export { localAgentError, localAgentStream } from "./stream.ts";
 export { configureAppHeldEnvVars } from "./binaries.ts";
+export { planUsage, recordPlanUsage, type PlanUsage, type PlanUsageReading, type UsageWindow } from "./plan-usage.ts";

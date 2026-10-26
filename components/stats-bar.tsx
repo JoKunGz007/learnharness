@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { subscriptionLabels, subscriptionLabel, type SessionPricing, type TurnUsage } from "@/src/core";
 import { formatTokens, formatUsd, planCostLabel, prettyModel } from "@/components/usage-format";
+import { PlanUsageBadge } from "@/components/plan-usage-badge";
 import { ModelControl, catalogLimits, useModelCatalog } from "@/components/model-picker";
 
 export function formatContextMeasurement(tokens: number | null, limit: number | null): string {
@@ -192,6 +193,7 @@ export function StatsBar({
 			{/* The model + thinking control — one controller for the conversation
 			    agents (prober/teacher); the record's `turns` above still folds
 			    the ACTUAL models billed, regardless of what the picker says. */}
+			<PlanUsageBadge refreshKey={turns.length} />
 			<ModelControl chatId={chatId} onModelChange={setSelectedModel} />
 		</div>
 	);
