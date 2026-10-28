@@ -4,7 +4,9 @@ _The current state only, not a log. Over ~200 lines: move finished entries to `d
 
 ## Current checkpoint (2026-10-26)
 
-`main` = upstream `3dc8847` (0.3.8) + PR #151 + PRs #163, #157, #139, #127 + the MasteryHarness FSRS review page (`87a6e5a`, D-005) + fork fixes; pushed to `origin` (private), head `2dea6ab`.
+`main` = upstream `3dd5211` (0.3.9, merged 2026-10-29) + PR #151 + PRs #163, #157, #139, #127 + the MasteryHarness FSRS review page (`87a6e5a`, D-005) + fork fixes. All five PRs still open upstream.
+
+- **0.3.9 merge (2026-10-29):** 5 conflicts, resolved by keeping both sides (plan-usage badge + upstream's `modelChanged`; `LocalAgentConnections` after upstream's `labelClassName` rows). On compaction, upstream's superseded-summary fix wins over our copy of `5378934`: `serializeForSummary` keeps legacy compaction text again. `npx tsc --noEmit` clean; 30 related test files 414/416 (the 2 failures are the Windows file-mode asserts in `subscription-*`). Not checked live; installed app is still 0.3.8.
 
 - **Claude subscription backend works on Windows.** Dev server (`next dev`): Claude Code 2.1.302 detected (signed in, Pro, subscription auth); a Teach turn on `claude-haiku-4-5` returned a probe question. Packaged server (`dist/win-unpacked`, Electron's Node): two Teach turns; the second resumed the same CLI process (context 9.1k → 9.3k). Checked 2026-10-26 in the browser pane.
 - **Windows installer builds and installs.** `dist/LearnHarness-0.3.8-x64-setup.exe` rebuilt 2026-10-26 from `2dea6ab` (build command in `CLAUDE.md` § Desktop app), installed silently (`/S`, exit 0) to `%LOCALAPPDATA%\Programs\learnharness` with a Start-menu shortcut. Launched from the shortcut: server up, `auto-update: fork build — updater disabled`, and no update check (fix `c7445a4`: the old build still queried GitHub and logged `update check failed: 404`). `%APPDATA%\LearnHarness\data` seeded with the dev `settings.json` + `local-agents.json` (claude-code on, Haiku 4.5 on all slots); the window's model picker shows `claude-haiku-4`… (owner screenshot).
