@@ -10,6 +10,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-005 — 2026-10-26 — Add the FSRS review page from fork wangdepin/MasteryHarness
 - D-006 — 2026-10-26 — Plan usage from Claude Code's stream, shown next to the model picker
 - D-007 — 2026-10-31 — Proposed: replace our #151 copy with upstream's `claude-code` provider plus a fork patch
+- D-008 — 2026-10-31 — Web search through Tavily
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -61,3 +62,10 @@ Merge notes (7 conflicts): `docs/architecture.md` take theirs and re-home the re
 Owner's calls still open: drop Antigravity (recommended unless used); keep `auth status` display and `allowBackgroundUse` (keep the latter only if background extraction runs on `claude-code`); model ids, aliases vs pinned (recommended pinned; either way existing `claude-*-5-5` settings need a migration, upstream offers only `opus`/`sonnet`/`haiku`).
 Consequences: Work in a git worktree (e.g. `D:\Projects\learnharness-0.4`) with its own `.next`/`dist`. Run `dist/win-unpacked`, not the installer, with `LH_DATA_DIR` and `LH_AUTH_FILE` on a test folder. Estimate: one conflict pass, 150–250 LOC port, rebuild, Haiku live check.
 Evidence: `git merge-tree` of `main` and `upstream/main` (`e69e852`), code reading and `docs/claude-code.md`, 2026-10-31. No typecheck, tests or live run of upstream's provider.
+
+## D-008 — 2026-10-31 — Web search through Tavily
+Status: accepted
+Decision: Use a Tavily key (owner's, saved in the Start-menu app's Settings) for the researcher's `web_search`. No Brave key; Deepgram left unset.
+Rationale: `--tools ""` turns off Claude Code's own search, so a search key is the only route. Tavily's free plan is 1,000 credits a month with no card; most sources say Brave now needs a card, with about $5 monthly credit (not confirmed on Brave's own page). The one independent benchmark found (AIMultiple, December 2025) put Brave about 1 point ahead, which doesn't outweigh that at personal volume.
+Consequences: Basic searches, about 1,000 a month. `src/server/search.ts` prefers Tavily if both keys exist.
+Evidence: live Teach turn in the installed app, 2026-10-31: `web_search` ran, 6 sources.

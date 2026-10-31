@@ -61,3 +61,15 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: Claude Code puts its session id and its cwd into the prompt; a random id or a fresh temp folder per process changes the prompt text early, and nothing after it matches. Also, the app renders the last message differently once it becomes history, so the previous turn's own breakpoint never lines up.
 - Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/local-agents/claude.ts`, and the `cacheBreak` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
 - Verify: in a chat record, a later turn's first call has `cacheRead` ≫ 9k and a small `cacheWrite`.
+
+## Claude desktop redirects AppData for everything it starts
+- Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
+- Cause: Claude desktop is an MSIX app. Processes it starts write `%APPDATA%` into `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming`, and session tools see those files over the real ones. An app opened from Explorer uses the real folder, a separate profile. Shadowed real files can't be read from a session.
+- Avoid: don't judge the owner's window from `%APPDATA%` as read here; launch the app or installer with `explorer.exe <path>` to run outside the container (`/S` can't be passed that way).
+- Verify: a file only in the real folder (`lockfile`) shows up in the session view but not under the Packages path.
+
+## Claude Code's usage line arrives after `message_stop`
+- Symptom: the plan-usage badge never appears; `/api/connections/local/usage` stays `{"claude-code":null}` after a turn that made no tool calls.
+- Cause: on 2.1.314 `rate_limit_event` comes after the last `message_stop`, just before `result`. Closing the run at `message_stop` killed the child before that line was read.
+- Avoid: `LocalRun.endMessage` finishes the reply but leaves the child up until `result` (3 s fallback). Keep this in any port to upstream's provider (D-007).
+- Verify: `tests/local-agents-bridge.test.ts`; the usage JSON is filled right after a one-reply turn.

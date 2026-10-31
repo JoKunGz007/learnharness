@@ -42,7 +42,7 @@ Build from Git Bash (~10 min; stop any `next dev` first, it shares `.next`):
 rm -rf dist .next/standalone && npx next build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && npx electron-builder --win --x64 --publish never
 ```
 
-- Output: `dist/LearnHarness-<ver>-x64-setup.exe` (unsigned: SmartScreen → More info → Run anyway). Data lives in `%APPDATA%\LearnHarness` (log: `logs\main.log`), separate from the dev server's `data/`.
+- Output: `dist/LearnHarness-<ver>-x64-setup.exe` (unsigned: SmartScreen → More info → Run anyway). Data lives in `%APPDATA%\LearnHarness` (log: `logs\main.log`), separate from the dev server's `data/`; session tools see a redirected copy of it (`GOTCHAS.md`).
 - **Auto-update is off in fork builds** (`setupAutoUpdater` in `electron/main.cjs`): upstream releases lack the Claude connection and would replace it. Update = pull upstream, rebuild, reinstall. `LH_UPDATE_FEED` opts back in. `electron-builder.yml` `publish.owner` points at the fork so a manual publish never targets upstream.
 - Test the packaged server without the window: from `dist/win-unpacked/resources/server/standalone`, `ELECTRON_RUN_AS_NODE=1 PORT=3123 LH_DATA_DIR=<tmp>/data LH_AUTH_FILE=<tmp>/auth.json ../../../LearnHarness.exe server.js`. (The window's own server needs a per-launch secret header.)
 - Upstream PR #159 (auto-update toggle) is already in upstream main (`769fc85`); don't merge it.
