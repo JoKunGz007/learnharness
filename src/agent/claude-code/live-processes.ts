@@ -3,7 +3,8 @@ export type LiveProcess = { readonly owner: symbol; readonly sessionId: string |
 // Tools usually call back within seconds, but a question tool holds its call until the learner
 // answers. Past this, the process is killed and the answer starts a fresh one with a full replay.
 // It stays under MCP_TOOL_TIMEOUT so the process is killed before the CLI gives up on its own.
-export const LIVE_PROCESS_IDLE_TIMEOUT_MS = 10 * 60_000;
+// Fork: 55 minutes (upstream: 10), just inside the history's 1-hour prompt cache.
+export const LIVE_PROCESS_IDLE_TIMEOUT_MS = 55 * 60_000;
 
 /** Test seam (runner.ts's pdfModelOverride idiom). */
 export const liveProcessIdleTimeoutMs = { current: LIVE_PROCESS_IDLE_TIMEOUT_MS };

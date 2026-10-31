@@ -46,7 +46,7 @@ export type RunClaude = (args: string[], options: RunClaudeOptions) => ClaudeChi
 // times out first.
 // A held call sends no progress, so the CLI's separate idle timeout (300 s by default) needs
 // the same bound, or it aborts an unanswered question first.
-const MCP_TOOL_TIMEOUT_MS = 30 * 60_000;
+const MCP_TOOL_TIMEOUT_MS = 60 * 60_000; // Fork: outlasts the 55-minute retention (upstream: 30)
 
 const PRIVATE_FILE_MODE = 0o600;
 
@@ -74,13 +74,14 @@ const START_FAILED_MESSAGE = "claude CLI failed to start";
 const NO_STOP_REASON_MESSAGE = "claude CLI ended the message without a stop reason";
 const NOT_SIGNED_IN_ERROR = "authentication_failed";
 
-export function toEffort(level: ThinkingLevel | undefined): AnthropicEffort {
-	return level ? EFFORTS[level] : "medium";
+/** Fork: undefined reasoning is "off" (pi-ai scale): no --effort, thinking disabled via MAX_THINKING_TOKENS=0 (toClaudeEnv). */
+export function toEffort(level: ThinkingLevel | undefined): AnthropicEffort | undefined {
+	return level ? EFFORTS[level] : undefined;
 }
 
 type ClaudeArgsInput = {
 	model: string;
-	effort: AnthropicEffort;
+	effort: AnthropicEffort | undefined;
 	systemPromptFile: string;
 	mcpConfigFile: string;
 	allowedTools: string[];
@@ -99,8 +100,7 @@ export function toClaudeArgs(input: ClaudeArgsInput): string[] {
 		"--include-partial-messages",
 		"--model",
 		input.model,
-		"--effort",
-		input.effort,
+		...(input.effort ? ["--effort", input.effort] : []), // Fork: thinking off passes no --effort
 		"--system-prompt-file",
 		input.systemPromptFile,
 		"--tools",
@@ -581,6 +581,7 @@ class ClaudeProcess implements LiveProcess {
 			return;
 		}
 		if (raw?.type === "result" && this.awaitingResult) { this.kill(); return; }
+		if (this.awaitingResult) return; // Fork: the turn is done; stray events before `result` are not a "moved on" failure
 		const event = parseCliLine(line);
 		if (!event) return;
 		if (event.type === "toolResults") {
@@ -657,11 +658,11 @@ function continueLiveProcess(turn: ClaudeTurn, owner: symbol, sessionId: string 
 	return true;
 }
 
-function toClaudeEnv(): NodeJS.ProcessEnv {
+function toClaudeEnv(thinkingOff = false): NodeJS.ProcessEnv {
 	// Preserve native CLI auth/routing, including launch-environment credentials.
 	// Claude Code chooses the account and billing method, not LearnHarness.
-	// Fork: scrubbed so usage always bills the subscription; plus compaction/MCP-output settings.
-	return { ...claudeChildEnv(), ...CLAUDE_TURN_ENV, MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS) };
+	// Fork: auth reroutes are scrubbed (claudeChildEnv) so usage always bills the subscription; plus compaction/MCP-output settings.
+	return { ...claudeChildEnv(), ...CLAUDE_TURN_ENV, MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ...(thinkingOff ? { MAX_THINKING_TOKENS: "0" } : {}) }; // Fork: thinking off
 }
 
 async function startProcess(
@@ -727,9 +728,10 @@ export function createClaudeCodeStreamFunction(runClaude: RunClaude): StreamFunc
 		const stream = createAssistantMessageEventStream();
 		const turn = new ClaudeTurn(stream, model, new Set(getCurrentTools(context.messages).map((tool) => tool.name)));
 
-		const env = toClaudeEnv();
+		const effort = toEffort(options?.reasoning), env = toClaudeEnv(effort === undefined);
 		// An existing child must not retain stale authentication/routing after env changes.
-		const configuration = { request: configurationForReuse(model, context, toEffort(options?.reasoning)), env };
+		// Fork: a changed thinking level (incl. off, via env and effort) is a different configuration.
+		const configuration = { request: configurationForReuse(model, context, effort ?? "off"), env };
 		if (continueLiveProcess(turn, owner, options?.sessionId, configuration, context.messages, options?.signal)) return stream;
 
 		startProcess(runClaude, turn, model, context, options, owner, configuration, env).catch((error: unknown) => {

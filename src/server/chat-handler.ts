@@ -7,7 +7,7 @@ import {
 	type TeachingAgent,
 } from "../agent/teacher-agent.ts";
 import { piEngineForSpec, type PiEngine } from "../agent/models.ts";
-import { connectionBackgroundAllowed as subscriptionBackgroundAllowed, connectionScopeCurrent, isSubscriptionProvider } from "../agent/subscription-connections.ts";
+import { connectionBackgroundAllowed, connectionScopeCurrent, isSubscriptionProvider } from "../agent/subscription-connections.ts";
 import { nativeSubscriptionError } from "../agent/subscription-stream.ts";
 import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
 import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
@@ -36,7 +36,7 @@ import { effectiveSettings, stores } from "./stores.ts";
 import { searchAvailable, searchProvider } from "./search.ts";
 import { providerKeyPresent } from "./keys.ts";
 import { CLAUDE_CODE_PROVIDER } from "../core/contracts/claude-code.ts";
-import { claudeCodeBackgroundAllowed, claudeCodeEnabled } from "./claude-code-config.ts"; // Fork
+import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
 import {
 	extractionEnabled,
 	graphToolsEnabled,
@@ -84,12 +84,6 @@ import type {CallUsage} from "../core/contracts.ts";
  * wake pipeline's server-side steers (src/server/jobs.ts) — one code path
  * for write-ahead persistence, turn liveness, and the turn services.
  */
-
-/** Fresh check only at new background-run admission; never cancel a run
- * already in progress when the opt-in is switched off. */
-function connectionBackgroundAllowed(provider: string): boolean {
-	return subscriptionBackgroundAllowed(provider) && (provider !== CLAUDE_CODE_PROVIDER || (providerKeyPresent(provider) && claudeCodeBackgroundAllowed())); // Fork: consent toggle
-}
 
 function settlementErrorText(error: unknown): string {
 	return error instanceof TurnPersistenceError ? error.message : "An error occurred.";
@@ -167,6 +161,7 @@ setJobRespawn((jobId) => void jobRunner.runJob(jobId));
 // built in this composition root, so the seam is installed here — the
 // tools read it fresh per call (allowed folders + the app's private paths).
 setFileAccessPolicy(fileAccessPolicy);
+installClaudeCodeBackgroundGate(); // Fork: one background gate for claude-code too
 
 /** The route-facing entry: parse {chatId, input} and run one turn. */
 export async function handleChatRequest(
@@ -252,14 +247,9 @@ export async function handleChatInput(
 	// persist (nothing durable changes); wake-pipeline turns ride the same
 	// path. The affected tier is strong — the conversation chain's own tier
 	// (a chat.model override still resolves through it).
-	if (isSubscriptionProvider(conversation.provider)) {
-		await refreshConnectionCatalog(conversation.provider);
-		if (input.type === "steers" && !connectionBackgroundAllowed(conversation.provider)) {
-			return Response.json({ error: "Background use is off for this connection. Automatic follow-up remains deferred in its queue." }, { status: 403 });
-		}
-	}
-	// Fork: claude-code is not a subscription provider here, but automatic follow-ups need its consent toggle.
-	if (conversation.provider === CLAUDE_CODE_PROVIDER && input.type === "steers" && claudeCodeEnabled() && !claudeCodeBackgroundAllowed()) {
+	if (isSubscriptionProvider(conversation.provider)) await refreshConnectionCatalog(conversation.provider);
+	// Fork: claude-code rides the same gate (not a subscription provider, so outside the refresh above).
+	if ((isSubscriptionProvider(conversation.provider) || conversation.provider === CLAUDE_CODE_PROVIDER) && input.type === "steers" && !connectionBackgroundAllowed(conversation.provider)) {
 		return Response.json({ error: "Background use is off for this connection. Automatic follow-up remains deferred in its queue." }, { status: 403 });
 	}
 	if (!providerKeyPresent(conversation.provider)) {

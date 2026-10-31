@@ -2,8 +2,8 @@
 
 LearnHarness can run its agents through an externally installed **Claude Code CLI**.
 This is a separate provider from the Anthropic API and the built-in subscription
-connections. Claude Code owns authentication, routing, model access, and billing;
-LearnHarness does **not** guarantee subscription-only use.
+connections. Claude Code owns authentication, model access, and billing. This fork
+scrubs auth reroutes from the child environment, so use is subscription-only.
 
 ## User setup
 
@@ -66,12 +66,13 @@ compatibility seam, not an official stability guarantee for that CLI metadata.
 
 [Environment provenance](../src/core/auth-env.ts) removes credentials reflected
 into `process.env` **only by LearnHarness's key store** before launching the CLI
-or its version probe. The original launch environment, the user's `HOME`, and
-native CLI authentication/routing remain available. Thus an existing environment
-API key or native CLI configuration can affect billing. LearnHarness neither
-copies its saved API keys into this provider nor enforces a subscription-only
-account. Prompts, relevant history, and tool results go through the CLI's configured
-service.
+or its version probe. This fork additionally scrubs auth reroutes
+(`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, Bedrock/Vertex/Foundry switches and
+similar; see `src/agent/claude-code/env.ts`), so usage always bills the Claude
+subscription. The user's `HOME` and the CLI's own sign-in remain available.
+LearnHarness neither copies its saved API keys into this provider nor uses any
+API key for it. Prompts, relevant history, and tool results go through the CLI's
+configured service.
 
 Processes are spawned directly without a shell. Each has an empty temporary
 working directory; the system prompt and token-bearing MCP configuration are in

@@ -81,3 +81,9 @@ test("Windows finds the native claude.exe inside an npm install of Claude Code",
 	const exe = win(appData, "npm", "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe");
 	assert.equal(resolveWith([exe], { PATH: "C:", APPDATA: appData }, "win32", home), exe);
 });
+
+// Fork: a relative LH_CLAUDE_BIN is resolved against cwd before the check and the return.
+test("relative LH_CLAUDE_BIN resolves against cwd", () => {
+	assert.equal(resolveClaudeBinary({ env: { LH_CLAUDE_BIN: "bin/claude" }, platform: "linux", homeDir: HOME, cwd: "/srv/app", isExecutable: (p) => p === "/srv/app/bin/claude" }), "/srv/app/bin/claude");
+	assert.equal(resolveClaudeBinary({ env: { LH_CLAUDE_BIN: ".\\bin\\claude.exe" }, platform: "win32", homeDir: "C:\\Users\\u", cwd: "C:\\server", isExecutable: (p) => p === "C:\\server\\bin\\claude.exe" }), "C:\\server\\bin\\claude.exe");
+});

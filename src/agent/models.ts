@@ -20,6 +20,8 @@ import { chatGPTStream } from "./chatgpt-stream.ts";
 import type { ChatGPTDispatchLifecycle } from "./chatgpt-request-cycle.ts";
 import { createClaudeCodeProvider } from "./claude-code/provider.ts";
 import { streamClaudeCode } from "./claude-code/stream.ts";
+import { CLAUDE_CODE_PROVIDER } from "./claude-code/constants.ts"; // Fork
+import { connectionBackgroundAllowed } from "./subscription-connections.ts"; // Fork
 import { nativeSubscriptionId, nativeSubscriptionModel } from "./subscription-bridge.ts";
 import { nativeSubscriptionStream } from "./subscription-stream.ts";
 
@@ -179,6 +181,10 @@ export function piEngineForSpec(spec: ResolvedModelSpec, background: boolean | (
 				return current.streamSimple(permitImages(currentModel), context, { ...requestOptions, reasoning: currentLevel === "off" ? undefined : currentLevel });
 			}
 			const purpose = typeof background === "function" ? background : () => background;
+			// Fork: dispatch check like nativeSubscriptionStream's; helper/extraction calls refuse, foreground turns never do.
+			if (spec.provider === CLAUDE_CODE_PROVIDER && purpose() && !connectionBackgroundAllowed(spec.provider)) {
+				return lazyStream(requestModel, async () => { throw new Error("Claude Code background use is off in this app. Enable it in Providers to run this work."); });
+			}
 			const stream = spec.provider === "chatgpt" ? chatGPTStream(purpose, lifecycle) : nativeId ? nativeSubscriptionStream(models.getProvider(nativeId)!, purpose, lifecycle) : models.streamSimple.bind(models);
 			return stream(requestModel, context, requestOptions);
 		},

@@ -25,10 +25,10 @@ test("lists pinned claude-* ids, including the 5-5 generation, and no aliases or
 	assert(ids.every((id) => id.startsWith("claude-") && !/-\d{8}$/.test(id)));
 });
 
-test("supports low through max thinking and clamps off to low", () => {
+test("supports off, low through max thinking; minimal clamps to low", () => {
 	for (const model of createCollection().getModels(CLAUDE_CODE_PROVIDER)) {
-		assert.deepEqual(getSupportedThinkingLevels(model), ["low", "medium", "high", "xhigh", "max"]);
-		assert.equal(clampThinkingLevel(model, "off"), "low");
+		assert.deepEqual(getSupportedThinkingLevels(model), ["off", "low", "medium", "high", "xhigh", "max"]);
+		assert.equal(clampThinkingLevel(model, "off"), "off"); // Fork: off is real
 		assert.equal(clampThinkingLevel(model, "minimal"), "low");
 	}
 });

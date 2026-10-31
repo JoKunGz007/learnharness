@@ -12,8 +12,8 @@ const SHARED_MODEL_FIELDS = {
 	// determines charges. Server pricing and the client catalog report unpriced.
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 	reasoning: true,
-	// The CLI has no thinking-off switch; effort low is the floor.
-	thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" },
+	// Fork: off is supported (no --effort, MAX_THINKING_TOKENS=0; see stream.ts); minimal has no CLI effort and clamps to low.
+	thinkingLevelMap: { minimal: null, low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: "max" },
 	contextWindow: 1_000_000,
 	maxTokens: 128_000,
 } satisfies Omit<Model<Api>, "id" | "name">;

@@ -1,4 +1,5 @@
 import { getClaudeBinary } from "../agent/claude-code/binary.ts";
+import { notifySubscriptionChange, setClaudeCodeBackgroundGate } from "../agent/subscription-connections.ts";
 import { settingsStore } from "../store/settings.ts";
 
 /** Fresh admission state, not a process-wide cache. Existing runs retain
@@ -18,3 +19,8 @@ export function claudeCodeBackgroundAllowed(): boolean {
 export function claudeCodeAvailable(): boolean {
 	return claudeCodeEnabled() && getClaudeBinary() !== null;
 }
+
+/** Fork: install the claude-code gate into connectionBackgroundAllowed (idempotent; every entry that needs it calls this). */
+export function installClaudeCodeBackgroundGate(): void { setClaudeCodeBackgroundGate(claudeCodeBackgroundAllowed); }
+/** Fork: after claudeCode settings are saved, wake/defer background work via onSubscriptionChange listeners. */
+export function claudeCodeSettingsChanged(): void { notifySubscriptionChange(); }

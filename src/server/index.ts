@@ -50,6 +50,7 @@ export * from "./observability.ts";
 export * from "./model-catalog.ts";
 export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";
+export { claudeCodeSettingsChanged } from "./claude-code-config.ts"; // Fork
 export { claudeCodeInstallationResponse, claudeCodePlanUsage } from "./claude-code.ts";
 // The custom endpoint module (registers into piModels() + probes for models).
 // No import side effects; the boot sync lives in stores.ts.

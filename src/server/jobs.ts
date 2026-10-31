@@ -70,8 +70,7 @@ import { hasUnresolvedQuestion, endsInDismissal, endsInQuestionRecovery, type Lh
 import { fireJobAbort, isJobLive } from "../agent/subagents/aborts.ts";
 import { stores, effectiveSettings } from "./stores.ts";
 import { resolveConversationSpec } from "../core/settings-resolution.ts";
-import { CLAUDE_CODE_PROVIDER } from "../core/contracts/claude-code.ts"; // Fork
-import { claudeCodeBackgroundAllowed } from "./claude-code-config.ts"; // Fork
+import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
 import type { Agent } from "@earendil-works/pi-agent-core";
@@ -254,7 +253,7 @@ function queueSteer(chatId: string, steer: SteerMessage): QueuedSteer {
 export function automaticFollowUpAllowed(chatId: string, agent?: Agent): boolean {
 	if (agent && state().automaticDeferred.has(agent)) return false;
 	const provider = agent?.state?.model?.provider ?? resolveConversationSpec(stores.chatStore.getChat(chatId)?.settings, effectiveSettings().models.strong)?.provider;
-	return connectionBackgroundAllowed(provider) && (provider !== CLAUDE_CODE_PROVIDER || claudeCodeBackgroundAllowed()); // Fork: claude-code consent toggle
+	return connectionBackgroundAllowed(provider);
 }
 
 function handOffEligible(chatId: string, agent: Agent): void {
@@ -617,13 +616,16 @@ async function pump(chatId: string): Promise<void> {
 	}
 }
 
+/** Fork: claude-code is gated by its toggle too, so the watcher covers it. */
+installClaudeCodeBackgroundGate(); // Fork: jobs may load in a chunk without chat-handler
+const watchedProvider = (provider: string | undefined) => isSubscriptionProvider(provider) || provider === "claude-code";
 // Connection changes are the only wake for consent-deferred automatic work.
 // No retry timer, inference, or API-key fallback is started while consent is off.
 state().stopConnectionWatch?.();
 state().stopConnectionWatch = onSubscriptionChange(() => {
 	const s = state();
 	for (const [chatId, agent] of s.liveAgents) {
-		if (!isSubscriptionProvider(agent.state?.model?.provider) || automaticFollowUpAllowed(chatId, agent)) continue;
+		if (!watchedProvider(agent.state?.model?.provider) || automaticFollowUpAllowed(chatId, agent)) continue;
 		const consumed = new Set(agent.state.messages.map((m) => (m as { id?: string }).id));
 		const pending = (s.queues.get(chatId) ?? []).filter((entry) => entry.handedTo === agent && !consumed.has(entry.steer.id));
 		if (pending.length === 0) continue;

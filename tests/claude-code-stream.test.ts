@@ -314,14 +314,14 @@ test("toClaudeArgs includes every isolation flag from Global Constraints", () =>
 	assert.equal(toClaudeArgs({ ...input, allowedTools: [] }).includes("--allowedTools"), false);
 });
 
-test('toEffort maps low..max verbatim, minimal to "low", undefined to "medium"', () => {
+test('toEffort maps low..max verbatim, minimal to "low", undefined (off) to none', () => {
 	assert.deepEqual(
 		(["low", "medium", "high", "xhigh", "max"] as const).map((level) => toEffort(level)),
 		["low", "medium", "high", "xhigh", "max"],
 	);
 
 	assert.equal(toEffort("minimal"), "low");
-	assert.equal(toEffort(undefined), "medium");
+	assert.equal(toEffort(undefined), undefined); // Fork: off
 });
 
 // Fork: the CLI stays up past message_stop so the plan-usage rate_limit_event (sent before `result`) is read.
@@ -777,9 +777,9 @@ test("spawns with the model alias, effort, bridge tools, MCP timeout headroom an
 	assert.equal(getFlagValue(call.args, "--model"), CLAUDE_CODE_MODELS[0]!.id);
 	assert.equal(getFlagValue(call.args, "--effort"), "xhigh");
 	assert.equal(getFlagValue(call.args, "--allowedTools"), "mcp__learnharness__read,mcp__learnharness__get_weather");
-	assert.equal(call.env.MCP_TOOL_TIMEOUT, "1800000");
-	assert.equal(call.env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT, "1800000");
-	assert.equal(LIVE_PROCESS_IDLE_TIMEOUT_MS, 600000, "learner-wait retention stays at ten minutes");
+	assert.equal(call.env.MCP_TOOL_TIMEOUT, "3600000");
+	assert.equal(call.env.CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT, "3600000");
+	assert.equal(LIVE_PROCESS_IDLE_TIMEOUT_MS, 3300000, "learner-wait retention stays at 55 minutes");
 	for (const name of ["MCP_TOOL_TIMEOUT", "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT"]) {
 		assert.ok(Number(call.env[name]) > LIVE_PROCESS_IDLE_TIMEOUT_MS, `${name} must outlast LearnHarness retention`);
 	}
@@ -1272,4 +1272,33 @@ for (const sharedIdentity of [false, true]) test(`two concurrent stream owners k
 	assert.equal(getText(replyTwo), "from two");
 	assert.equal(one.calls.length, 1);
 	assert.equal(two.calls.length, 1);
+});
+
+// Fork: stray events after a clean end, while waiting for `result`, are ignored (no "moved on" kill that loses the usage line).
+test("a stray event while awaiting result does not kill the CLI before the rate_limit_event", async (t) => {
+	const { clearPlanUsage, planUsage } = await import("../src/agent/claude-code/plan-usage.ts");
+	clearPlanUsage();
+	const base = readFixtureLines("text.jsonl");
+	const stop = base.findIndex((line) => line.includes('"message_stop"'));
+	const stray = JSON.stringify({ type: "stream_event", event: { type: "message_start", message: { id: "msg_stray", role: "assistant", content: [], model: "claude-haiku-5-5", usage: { input_tokens: 1, output_tokens: 0 } } } });
+	const usage = JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "allowed", unifiedWindows: { five_hour: { utilization: 0.42, resetsAt: 1793025600 } } } });
+	const { events } = await runScenario(t, [...base.slice(0, stop + 1), stray, usage, ...base.slice(stop + 1).filter((line) => !line.includes('"rate_limit_event"'))]);
+	assert.equal(getLastEvent(events).type, "done");
+	for (let i = 0; i < 40 && !planUsage("claude-code"); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.equal(planUsage("claude-code")?.fiveHour?.pct, 42);
+});
+
+// Fork: thinking off = no --effort and MAX_THINKING_TOKENS=0; a level change is a different live-process configuration.
+test("thinking off passes no --effort and sets MAX_THINKING_TOKENS=0; a level passes --effort and no override", async (t) => {
+	const off = await runScenario(t, readFixtureLines("text.jsonl"));
+	const offCall = getOnlyCall(off.calls);
+	assert.equal(offCall.args.includes("--effort"), false);
+	assert.equal(offCall.env.MAX_THINKING_TOKENS, "0");
+	const high = await runScenario(t, readFixtureLines("text.jsonl"), { reasoning: "high" });
+	const highCall = getOnlyCall(high.calls);
+	assert.equal(highCall.args[highCall.args.indexOf("--effort") + 1], "high");
+	assert.equal(highCall.env.MAX_THINKING_TOKENS, undefined);
+	const { configurationForReuse } = await import("../src/agent/claude-code/reuse-context.ts");
+	const ctx = normalizeContext({ systemPrompt: "s", messages: [HI], tools: [] });
+	assert.notDeepEqual(configurationForReuse(CLAUDE_CODE_MODELS[0]!, ctx, "off"), configurationForReuse(CLAUDE_CODE_MODELS[0]!, ctx, "low"));
 });

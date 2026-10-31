@@ -53,7 +53,9 @@ export function PlanUsageBadge({ refreshKey }: { refreshKey?: number }) {
 		};
 		load();
 		const timer = setInterval(load, 60_000);
-		return () => { live = false; clearInterval(timer); };
+		// The usage line arrives after message_stop (up to the 3 s fallback): read once more after it.
+		const late = refreshKey === undefined ? undefined : setTimeout(load, 4000);
+		return () => { live = false; clearInterval(timer); clearTimeout(late); };
 	}, [refreshKey]);
 	return <PlanUsageView usage={usage} />;
 }

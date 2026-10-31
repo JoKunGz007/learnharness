@@ -57,7 +57,7 @@ function getPosixSearchSpec(env: BinaryLookup["env"], homeDir: string): SearchSp
 export function resolveClaudeBinary({ env, platform, homeDir, cwd = process.cwd(), isExecutable }: BinaryLookup): string | null {
 	// Fork: LH_CLAUDE_BIN overrides discovery.
 	const override = env.LH_CLAUDE_BIN?.trim();
-	if (override && isExecutable(override)) return override;
+	if (override) { const resolved = (platform === "win32" ? path.win32 : path.posix).resolve(cwd, override); if (isExecutable(resolved)) return resolved; } // Fork: absolute, like discovered paths
 
 	const { paths, names, knownDirs } = platform === "win32"
 		? getWindowsSearchSpec(env, homeDir)
