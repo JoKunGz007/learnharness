@@ -72,6 +72,7 @@ const REFUSAL_MESSAGE = "The model refused to complete the request";
 const ABORT_MESSAGE = "Request was aborted";
 const START_FAILED_MESSAGE = "claude CLI failed to start";
 const NO_STOP_REASON_MESSAGE = "claude CLI ended the message without a stop reason";
+const NO_REPLY_MESSAGE = "Claude ended its turn without replying. Send your message again."; // Fork
 const NOT_SIGNED_IN_ERROR = "authentication_failed";
 
 /** Fork: undefined reasoning is "off" (pi-ai scale): no --effort, thinking disabled via MAX_THINKING_TOKENS=0 (toClaudeEnv). */
@@ -160,6 +161,8 @@ class ClaudeTurn {
 		private readonly stream: AssistantMessageEventStream,
 		model: Model<Api>,
 		private readonly harnessToolNames: ReadonlySet<string>,
+		/** Fork: the learner spoke last. After tool results, ending silently is normal. */
+		private readonly expectsReply: boolean,
 	) {
 		this.output = createOutput(model);
 	}
@@ -374,6 +377,12 @@ class ClaudeTurn {
 
 		if (stopReason === "pending" || stopReason === "aborted") {
 			this.fail(this.output.errorMessage ?? NO_STOP_REASON_MESSAGE, "error");
+			return;
+		}
+
+		// Fork: the model can stop after hidden thinking alone; without this the chat stalls with no reply or error.
+		if (this.expectsReply && stopReason === "stop" && !this.output.content.some((block) => block.type === "text" ? block.text.trim() : block.type === "toolCall")) {
+			this.fail(NO_REPLY_MESSAGE, "error");
 			return;
 		}
 
@@ -726,7 +735,7 @@ export function createClaudeCodeStreamFunction(runClaude: RunClaude): StreamFunc
 	const owner = Symbol("claude-code stream owner");
 	return (model, context, options) => {
 		const stream = createAssistantMessageEventStream();
-		const turn = new ClaudeTurn(stream, model, new Set(getCurrentTools(context.messages).map((tool) => tool.name)));
+		const turn = new ClaudeTurn(stream, model, new Set(getCurrentTools(context.messages).map((tool) => tool.name)), context.messages.at(-1)?.role === "user");
 
 		const effort = toEffort(options?.reasoning), env = toClaudeEnv(effort === undefined);
 		// An existing child must not retain stale authentication/routing after env changes.

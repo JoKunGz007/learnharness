@@ -67,3 +67,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: on 2.1.314 `rate_limit_event` comes after the last `message_stop`, just before `result`. Closing the run at `message_stop` killed the child before that line was read.
 - Avoid: a clean end in `src/agent/claude-code/stream.ts` finishes the reply but leaves the child up until `result` (3 s fallback).
 - Verify: the stream-level test in `tests/claude-code-stream.test.ts`; the usage JSON is filled right after a one-reply turn.
+
+## A `claude-code` turn can end with only hidden thinking
+- Symptom: PROBING stays on screen with an empty "Agent's thinking", no reply and no error; no CLI process is running. The record has one empty `thinking` block and `stopReason: "stop"`.
+- Cause: not proven; the failing stream wasn't captured. Seen on 2 of 5 Haiku 5.5 medium turns with the message `test`. Claude Code sends thinking with empty deltas, so nothing shows while it thinks, and `stream.ts` keeps text blocks, so the model probably stopped without replying.
+- Avoid: `ClaudeTurn.finish` fails such a turn with a visible error when the learner spoke last. After tool results, a silent end stays normal.
+- Verify: `tests/claude-code-stream.test.ts` "thinking alone after a learner message".

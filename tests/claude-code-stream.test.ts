@@ -701,6 +701,37 @@ test("refusal stop reason → error", async (t) => {
 	assert.equal(getErrorMessage(events), "The model refused to complete the request");
 });
 
+test("thinking alone after a learner message → visible error, not a silent stop", async (t) => {
+	const { events } = await runScenario(t, [
+		streamEvent({ type: "message_start", message: { usage: {} } }),
+		streamEvent({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } }),
+		streamEvent({ type: "content_block_stop", index: 0 }),
+		streamEvent({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: {} }),
+		streamEvent({ type: "message_stop" }),
+	]);
+	assert.equal(getErrorMessage(events), "Claude ended its turn without replying. Send your message again.");
+});
+
+test("thinking alone after tool results still ends normally", async (t) => {
+	const { runClaude } = createFakeRun(t, [
+		streamEvent({ type: "message_start", message: { usage: {} } }),
+		streamEvent({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: {} }),
+		streamEvent({ type: "message_stop" }),
+	]);
+	const model = CLAUDE_CODE_MODELS[0];
+	assert.ok(model);
+	const context = normalizeContext({
+		systemPrompt: "You are a tutor.",
+		messages: [
+			{ role: "user", content: "hi", timestamp: 0 },
+			{ role: "toolResult", toolCallId: "t1", toolName: "read", content: [{ type: "text", text: "ok" }], isError: false, timestamp: 0 },
+		],
+		tools: [READ_TOOL],
+	});
+	const events = await collectEvents(createClaudeCodeStreamFunction(runClaude)(model, context, { sessionId: SESSION_ID }));
+	assert.equal(getLastEvent(events).type, "done");
+});
+
 test("non-zero exit mid-stream → error naming the exit code, stderr logged not shown, process and temp dirs gone", async (t) => {
 	const consoleError = t.mock.method(console, "error", () => {});
 	const midStream = readFixtureLines("text.jsonl").slice(0, 5);
