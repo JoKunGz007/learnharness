@@ -11,6 +11,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-006 — 2026-10-26 — Plan usage from Claude Code's stream, shown next to the model picker
 - D-007 — 2026-10-31 — Proposed: replace our #151 copy with upstream's `claude-code` provider plus a fork patch
 - D-008 — 2026-10-31 — Web search through Tavily
+- D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -69,3 +70,10 @@ Decision: Use a Tavily key (owner's, saved in the Start-menu app's Settings) for
 Rationale: `--tools ""` turns off Claude Code's own search, so a search key is the only route. Tavily's free plan is 1,000 credits a month with no card; most sources say Brave now needs a card, with about $5 monthly credit (not confirmed on Brave's own page). The one independent benchmark found (AIMultiple, December 2025) put Brave about 1 point ahead, which doesn't outweigh that at personal volume.
 Consequences: Basic searches, about 1,000 a month. `src/server/search.ts` prefers Tavily if both keys exist.
 Evidence: live Teach turn in the installed app, 2026-10-31: `web_search` ran, 6 sources.
+
+## D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
+Status: accepted (on branch `port/upstream-0.4.1`, merge `134d384`; not yet in `main`). Supersedes D-007 and the #151 part of D-001; D-001's subscription-only rule stands.
+Decision: Owner chose to start before the 1 Nov exam, on a separate branch and worktree. Owner's four calls: drop Antigravity; pinned model ids (the 14 pi-ai Anthropic ids, no `opus`/`sonnet`/`haiku` aliases), so saved `claude-*-5-5` settings need no migration; keep the `auth status` display; keep `allowBackgroundUse`, now `settings.claudeCode.allowBackgroundUse` (absent = on).
+Rationale: as D-007. Pinned ids stop a model changing under a saved setting.
+Consequences: fork patches are marked `Fork:` in `src/agent/claude-code/`, `src/server/claude-code*.ts`, `components/settings/claude-code-status.tsx`. Changes from the old build: MCP tool timeout is upstream's 30 minutes (was 24 hours; a longer-held question gets a fresh process that replays it); old `local-agents.json` is not read; re-enabling background use doesn't wake parked follow-ups; the per-slot "Enable background use" button is gone.
+Evidence: `PLAN.md` § Current checkpoint.
