@@ -800,7 +800,7 @@ test("MCP timeout headroom overrides inherited shorter timeouts", async (t) => {
 
 	const { calls } = await runScenario(t, readFixtureLines("text.jsonl"));
 	const call = getOnlyCall(calls);
-	for (const name of names) assert.equal(call.env[name], "1800000");
+	for (const name of names) assert.equal(call.env[name], "3600000");
 });
 
 test("preserves existing CLI environment authentication without a subscription guarantee", async (t) => {
