@@ -20,7 +20,7 @@ _The current state only, not a log. Over ~200 lines: move finished entries to `d
 ## Next
 1. Owner uses the installed app (Start menu → LearnHarness). Done when a full Teach session runs there. From 2026-10-29 the owner uses it for 2110403 midterm prep (exam Sun 1 Nov) on `claude-code` Sonnet 5.5, with Opus 5.5 for topics that still don't make sense. Both are in pi-ai's catalog, but neither has been run live yet. If Opus fails on Pro, stay on Sonnet.
 2. Watch whether auto-extraction now fills the graph in a normal Teach session. Owner chose option (a) on 2026-10-26: `graph.extractionChunkTokens` = 1024 in the installed app's Settings (default 4096; see `GOTCHAS.md`). If it is still too slow, the next step is a trigger at `probe_done`/session end.
-3. When upstream moves: `git fetch upstream && git merge upstream/main`, re-run typecheck + related tests, rebuild the installer. If #151 merges upstream, drop our copy.
+3. Move to upstream 0.4.1 (`e69e852`, assessed 2026-10-31, **not merged**; #151 still open): plan in D-007, proposed. Start when the owner says, after the 1 Nov exam unless they choose earlier. Don't run a plain `git merge`, and don't reinstall before the exam. Until this lands, the old sync recipe does not apply: upstream now has its own `claude-code` provider. Later syncs: `git fetch upstream && git merge upstream/main`, typecheck + related tests, rebuild.
 
 ## Later / ideas
 - #142 (retry last reply): 4 conflicts; first check whether 0.3.9's failed-turn retry (`a572675`) already covers it. #150 (say tool): only if lessons collapse into one-line gists on the Claude path.
