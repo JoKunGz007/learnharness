@@ -66,10 +66,12 @@ import {
 	type SteerMessage,
 } from "../core/contracts.ts";
 import type { TurnInput } from "../core/input-events.ts";
-import { danglingQuestionOf, endsInDismissal, type LhMessage } from "../core/native-messages.ts";
+import { hasUnresolvedQuestion, endsInDismissal, endsInQuestionRecovery, type LhMessage } from "../core/native-messages.ts";
 import { fireJobAbort, isJobLive } from "../agent/subagents/aborts.ts";
 import { stores, effectiveSettings } from "./stores.ts";
 import { resolveConversationSpec } from "../core/settings-resolution.ts";
+import { CLAUDE_CODE_PROVIDER } from "../core/contracts/claude-code.ts"; // Fork
+import { claudeCodeBackgroundAllowed } from "./claude-code-config.ts"; // Fork
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
 import type { Agent } from "@earendil-works/pi-agent-core";
@@ -252,7 +254,7 @@ function queueSteer(chatId: string, steer: SteerMessage): QueuedSteer {
 export function automaticFollowUpAllowed(chatId: string, agent?: Agent): boolean {
 	if (agent && state().automaticDeferred.has(agent)) return false;
 	const provider = agent?.state?.model?.provider ?? resolveConversationSpec(stores.chatStore.getChat(chatId)?.settings, effectiveSettings().models.strong)?.provider;
-	return connectionBackgroundAllowed(provider);
+	return connectionBackgroundAllowed(provider) && (provider !== CLAUDE_CODE_PROVIDER || claudeCodeBackgroundAllowed()); // Fork: claude-code consent toggle
 }
 
 function handOffEligible(chatId: string, agent: Agent): void {
@@ -564,7 +566,9 @@ async function pump(chatId: string): Promise<void> {
 			// hands them to that turn once the text-claim lands — until then,
 			// settlement re-pumps and lands them right after it). The pause is
 			// derived from the tail, so any user message un-holds by construction.
-			if (endsInDismissal(fresh.messages) || !automaticFollowUpAllowed(chatId)) {
+			// An interrupted question-recovery request also waits for explicit
+			// input; a queued job must not restart its replacement turn.
+			if (endsInDismissal(fresh.messages) || endsInQuestionRecovery(fresh.messages) || !automaticFollowUpAllowed(chatId)) {
 				parked = true;
 				return;
 			}
@@ -696,14 +700,14 @@ async function waitForIdle(chatId: string): Promise<void> {
 	for (;;) {
 		const record = stores.chatStore.getChat(chatId);
 		if (!record || !(state().queues.get(chatId) ?? []).some((entry) => !entry.waking && !entry.deferred && !entry.handedTo)) return;
-		const blocked = isTurnRunning(chatId) || danglingQuestionOf(record.messages) !== null;
+		const blocked = isTurnRunning(chatId) || hasUnresolvedQuestion(record.messages);
 		if (!blocked) {
 			await delay(GRACE_MS);
 			const recheck = stores.chatStore.getChat(chatId);
 			if (
 				!isTurnRunning(chatId) &&
 				recheck &&
-				danglingQuestionOf(recheck.messages) === null
+				!hasUnresolvedQuestion(recheck.messages)
 			) {
 				return;
 			}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlanUsage, UsageWindow } from "../src/agent/local-agents/plan-usage.ts";
+import type { PlanUsage, UsageWindow } from "../src/agent/claude-code/plan-usage.ts";
 
 /** The cache-timer rule: red from 80, amber from 50, else green. */
 export function usageColor(pct: number): string {
@@ -46,7 +46,7 @@ export function PlanUsageBadge({ refreshKey }: { refreshKey?: number }) {
 	useEffect(() => {
 		let live = true;
 		const load = () => {
-			fetch("/api/connections/local/usage", { cache: "no-store" })
+			fetch("/api/claude-code/usage", { cache: "no-store" })
 				.then((res) => (res.ok ? res.json() : null))
 				.then((body) => { if (live) setUsage(body?.["claude-code"] ?? null); })
 				.catch(() => { if (live) setUsage(null); });
