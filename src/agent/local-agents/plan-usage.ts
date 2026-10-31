@@ -25,15 +25,20 @@ export function parseRateLimitInfo(info: unknown): PlanUsageReading | null {
 	} catch { return null; }
 }
 
-const store = new Map<string, PlanUsage>();
+// On globalThis like state.ts: this module is bundled into several route chunks.
+const KEY = Symbol.for("lh.localAgents.planUsage");
+function store(): Map<string, PlanUsage> {
+	const g = globalThis as typeof globalThis & { [KEY]?: Map<string, PlanUsage> };
+	return (g[KEY] ??= new Map());
+}
 
 export function recordPlanUsage(provider: "claude-code", reading: PlanUsageReading, now = Date.now()): void {
-	store.set(provider, { ...reading, at: now });
+	store().set(provider, { ...reading, at: now });
 }
 
 export function planUsage(provider: "claude-code"): PlanUsage | null {
-	return store.get(provider) ?? null;
+	return store().get(provider) ?? null;
 }
 
 /** Test helper. */
-export function clearPlanUsage(): void { store.clear(); }
+export function clearPlanUsage(): void { store().clear(); }

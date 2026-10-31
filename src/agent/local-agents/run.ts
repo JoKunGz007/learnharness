@@ -155,6 +155,7 @@ export function conversationKeys(messages: readonly Message[]): string[] {
 
 const SURFACE_DEBOUNCE_MS = 150;
 const ORPHAN_WAIT_MS = 5_000;
+const RESULT_GRACE_MS = 3_000;
 
 export interface LocalRunOptions {
 	key: string;
@@ -237,7 +238,7 @@ export class LocalRun {
 		if (this.state === "parked") { this.close(); return; }
 		if (!this.writer || this.writer.ended) return;
 		if (this.writer.toolCallIds.length > 0) this.park();
-		else this.finish(reason);
+		else this.finishKeepingChild(reason);
 	}
 
 	/** The CLI's whole turn completed (ACP prompt response, Claude result). */
@@ -358,6 +359,15 @@ export class LocalRun {
 	private finish(reason: "stop" | "length") {
 		this.writer?.done(reason);
 		this.close();
+	}
+
+	/** The reply is complete, but Claude Code still sends its plan-usage line and `result`; endTurn closes on `result`. */
+	private finishKeepingChild(reason: "stop" | "length") {
+		this.writer?.done(reason);
+		this.writer = undefined;
+		clearTimeout(this.idleTimer);
+		this.idleTimer = setTimeout(() => this.close(), RESULT_GRACE_MS);
+		this.idleTimer.unref?.();
 	}
 
 	close() {

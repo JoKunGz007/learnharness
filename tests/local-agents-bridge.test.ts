@@ -91,6 +91,8 @@ test("a parked run resumes only for exactly its pending calls, same prompt/tools
 	run.text("done");
 	run.endMessage("stop");
 	assert.equal((await next.result()).stopReason, "stop");
+	assert.equal(run.closed, false, "the child stays up for its usage line and result");
+	run.endTurn("stop");
 	assert.equal(findRun("k1"), undefined, "a finished run releases itself");
 });
 
