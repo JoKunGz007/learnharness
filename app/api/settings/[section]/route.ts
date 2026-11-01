@@ -36,6 +36,7 @@ import {
 	allSegmentPaths,
 	clampChatLevel,
 	clampModelsLevels,
+	claudeCodeSettingsChanged,
 	effectiveSettings,
 	promptOverrides,
 	readSettingsRecord,
@@ -129,5 +130,6 @@ export async function PUT(request: Request, ctx: { params: Promise<{ section: st
 	// along untouched (other sections, unknown keys — sanitize preserves).
 	const next = { ...record, [section]: sectionOut };
 	writeSettingsRecord(next);
+	if (section === "claudeCode") claudeCodeSettingsChanged(); // Fork: toggle defers or wakes background work
 	return Response.json({ settings: next });
 }

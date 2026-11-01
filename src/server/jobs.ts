@@ -66,10 +66,11 @@ import {
 	type SteerMessage,
 } from "../core/contracts.ts";
 import type { TurnInput } from "../core/input-events.ts";
-import { danglingQuestionOf, endsInDismissal, type LhMessage } from "../core/native-messages.ts";
+import { hasUnresolvedQuestion, endsInDismissal, endsInQuestionRecovery, type LhMessage } from "../core/native-messages.ts";
 import { fireJobAbort, isJobLive } from "../agent/subagents/aborts.ts";
 import { stores, effectiveSettings } from "./stores.ts";
 import { resolveConversationSpec } from "../core/settings-resolution.ts";
+import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
 import type { Agent } from "@earendil-works/pi-agent-core";
@@ -564,7 +565,9 @@ async function pump(chatId: string): Promise<void> {
 			// hands them to that turn once the text-claim lands — until then,
 			// settlement re-pumps and lands them right after it). The pause is
 			// derived from the tail, so any user message un-holds by construction.
-			if (endsInDismissal(fresh.messages) || !automaticFollowUpAllowed(chatId)) {
+			// An interrupted question-recovery request also waits for explicit
+			// input; a queued job must not restart its replacement turn.
+			if (endsInDismissal(fresh.messages) || endsInQuestionRecovery(fresh.messages) || !automaticFollowUpAllowed(chatId)) {
 				parked = true;
 				return;
 			}
@@ -613,13 +616,16 @@ async function pump(chatId: string): Promise<void> {
 	}
 }
 
+/** Fork: claude-code is gated by its toggle too, so the watcher covers it. */
+installClaudeCodeBackgroundGate(); // Fork: jobs may load in a chunk without chat-handler
+const watchedProvider = (provider: string | undefined) => isSubscriptionProvider(provider) || provider === "claude-code";
 // Connection changes are the only wake for consent-deferred automatic work.
 // No retry timer, inference, or API-key fallback is started while consent is off.
 state().stopConnectionWatch?.();
 state().stopConnectionWatch = onSubscriptionChange(() => {
 	const s = state();
 	for (const [chatId, agent] of s.liveAgents) {
-		if (!isSubscriptionProvider(agent.state?.model?.provider) || automaticFollowUpAllowed(chatId, agent)) continue;
+		if (!watchedProvider(agent.state?.model?.provider) || automaticFollowUpAllowed(chatId, agent)) continue;
 		const consumed = new Set(agent.state.messages.map((m) => (m as { id?: string }).id));
 		const pending = (s.queues.get(chatId) ?? []).filter((entry) => entry.handedTo === agent && !consumed.has(entry.steer.id));
 		if (pending.length === 0) continue;
@@ -652,7 +658,8 @@ function finalizeJob(jobId: string): void {
 		if (!job) return;
 		if (!job.delivery) job = normalizeLegacyResult(job);
 		if (job.delivery?.status !== "pending") return;
-		stores.jobStore.updateJob(jobId, { delivery: { ...job.delivery, status: "delivered" } });
+		// Bookkeeping, not job activity: updatedAt stays the worker's last write (chat-share dates the job by it).
+		stores.jobStore.updateJob(jobId, { delivery: { ...job.delivery, status: "delivered" }, updatedAt: job.updatedAt });
 	} catch (error) {
 		// The conversation is already durable. A bookkeeping failure must
 		// never replay that marker or turn a successful worker into a failure.
@@ -696,14 +703,14 @@ async function waitForIdle(chatId: string): Promise<void> {
 	for (;;) {
 		const record = stores.chatStore.getChat(chatId);
 		if (!record || !(state().queues.get(chatId) ?? []).some((entry) => !entry.waking && !entry.deferred && !entry.handedTo)) return;
-		const blocked = isTurnRunning(chatId) || danglingQuestionOf(record.messages) !== null;
+		const blocked = isTurnRunning(chatId) || hasUnresolvedQuestion(record.messages);
 		if (!blocked) {
 			await delay(GRACE_MS);
 			const recheck = stores.chatStore.getChat(chatId);
 			if (
 				!isTurnRunning(chatId) &&
 				recheck &&
-				danglingQuestionOf(recheck.messages) === null
+				!hasUnresolvedQuestion(recheck.messages)
 			) {
 				return;
 			}

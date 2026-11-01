@@ -8,15 +8,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Avoid: from Git Bash, `NODE_ENV=test npx tsx --test tests/<file>.test.ts`.
 - Verify: the run prints `ℹ tests N`.
 
-## Local-agent tests fail on Windows (8 of 44)
-- Symptom: `tests/local-agents-*.test.ts` fail, e.g. "claude-code catalog has no model claude-haiku-4-5".
-- Cause: they set `LH_CLAUDE_BIN` to a `.mjs` fake, which Windows can't execute, so the probe fails and the catalog is empty. Not a product bug: the real CLI works (see `PLAN.md`).
-- Avoid: judge the backend by a live run, or wrap the fake in a launcher (`PLAN.md` § Later).
-- Verify: the other 36 pass.
-
-## Other Windows-only test failures
-- Symptom: `chatgpt-auth.test.ts` / `subscription-auth.test.ts` owner-only file-mode assertions and a control-bridge test fail.
-- Cause: POSIX file modes (and timing) don't hold on Windows. These tests weren't touched by fork changes, but they weren't confirmed against plain upstream either.
+## Windows-only test failures
+- Symptom: `chatgpt-auth.test.ts` / `subscription-auth.test.ts` owner-only file-mode assertions and a control-bridge test fail. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
+- Cause: POSIX file modes, signals (and timing) don't hold on Windows. Not confirmed against plain upstream.
 - Avoid: don't chase them unless that code changes.
 - Verify: same failures on `main` before and after a change.
 
@@ -30,13 +24,13 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Symptom: requests to the `.exe`'s server (random port in `main.log`) fail authorization.
 - Cause: the window passes a per-launch `x-learnharness-desktop` secret (`src/server/desktop-access.ts`).
 - Avoid: test the packaged server headless instead (`CLAUDE.md` § Desktop app), without `LH_DESKTOP_SERVER`.
-- Verify: `curl localhost:3123/api/connections/local` returns statuses.
+- Verify: `curl localhost:3123/api/claude-code` returns the status.
 
 ## Browser-pane clicks on settings controls don't register
 - Symptom: coordinate/ref clicks on "Set up your models", the model dropdowns or Connect do nothing.
 - Cause: seen while the pane was hidden or another overlay had focus; not reproduced as an app bug.
-- Avoid: use `find` refs with the pane visible, or set state via the API (`POST /api/connections/local/claude-code {"action":"enable","enabled":true}`, copy `data/settings.json`).
-- Verify: `GET /api/connections/local` shows `enabled:true, connected:true`.
+- Avoid: use `find` refs with the pane visible, or copy `data/settings.json`.
+- Verify: `GET /api/claude-code` shows the expected status.
 
 ## `npm ci` while `next dev` runs half-deletes `node_modules`
 - Symptom: `npm error EPERM ... unlink ... lightningcss.win32-x64-msvc.node`; afterwards `npx tsc` fetches the bogus `tsc@2.0.4` package because `node_modules/.bin/tsc` is gone.
@@ -59,7 +53,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## `claude -p` processes don't share the prompt cache by default
 - Symptom: every turn on `claude-code` re-writes the whole conversation to cache (a new process's first call reads only ~9k, the system prompt + tools).
 - Cause: Claude Code puts its session id and its cwd into the prompt; a random id or a fresh temp folder per process changes the prompt text early, and nothing after it matches. Also, the app renders the last message differently once it becomes history, so the previous turn's own breakpoint never lines up.
-- Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/local-agents/claude.ts`, and the `cacheBreak` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
+- Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/claude-code/stream.ts`, and the `cache_control` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
 - Verify: in a chat record, a later turn's first call has `cacheRead` ≫ 9k and a small `cacheWrite`.
 
 ## Claude desktop redirects AppData for everything it starts
@@ -69,7 +63,19 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Verify: a file only in the real folder (`lockfile`) shows up in the session view but not under the Packages path.
 
 ## Claude Code's usage line arrives after `message_stop`
-- Symptom: the plan-usage badge never appears; `/api/connections/local/usage` stays `{"claude-code":null}` after a turn that made no tool calls.
+- Symptom: the plan-usage badge never appears; `/api/claude-code/usage` stays `{"claude-code":null}` after a turn that made no tool calls.
 - Cause: on 2.1.314 `rate_limit_event` comes after the last `message_stop`, just before `result`. Closing the run at `message_stop` killed the child before that line was read.
-- Avoid: `LocalRun.endMessage` finishes the reply but leaves the child up until `result` (3 s fallback). Keep this in any port to upstream's provider (D-007).
-- Verify: `tests/local-agents-bridge.test.ts`; the usage JSON is filled right after a one-reply turn.
+- Avoid: a clean end in `src/agent/claude-code/stream.ts` finishes the reply but leaves the child up until `result` (3 s fallback).
+- Verify: the stream-level test in `tests/claude-code-stream.test.ts`; the usage JSON is filled right after a one-reply turn.
+
+## A `claude-code` turn can end with only hidden thinking
+- Symptom: PROBING stays on screen with an empty "Agent's thinking", no reply and no error; no CLI process is running. The record has one empty `thinking` block and `stopReason: "stop"`.
+- Cause: not proven; the failing stream wasn't captured. Seen on 2 of 5 Haiku 5.5 medium turns with the message `test`. Claude Code sends thinking with empty deltas, so nothing shows while it thinks, and `stream.ts` keeps text blocks, so the model probably stopped without replying.
+- Avoid: `ClaudeTurn.finish` fails such a turn with a visible error when the learner spoke last. After tool results, a silent end stays normal.
+- Verify: `tests/claude-code-stream.test.ts` "thinking alone after a learner message".
+
+## `tests/jobs.test.ts` never exits
+- Symptom: a test run containing it hangs past any timeout with no failure in the log; the file reports `fail 1` only when killed, while all 56 subtests pass. A leftover run can keep node processes alive into the next session.
+- Cause: not traced; something keeps the process open after the last test. Same with the 2026-11-01 cap fix stashed, on the 0.4.1 port. Windows-only or not is unknown.
+- Avoid: run files one at a time under `timeout 60` and read the subtest counts; don't run it in a group.
+- Verify: `NODE_ENV=test timeout 60 npx tsx --test tests/jobs.test.ts` shows `pass 56`, exit 124.

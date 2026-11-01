@@ -71,6 +71,25 @@ export function parseOptionsIfString<T>(options: string | T[] | undefined): unkn
 	return options;
 }
 
+/** A literal `\n` that is a newline escape, not a TeX command (`\nabla`,
+ *  `\neq`, `\not`, `\nu` …) or a TeX row break before an n (`\\n`): the
+ *  TeX names are excluded by whole word. */
+const ESCAPED_NEWLINE = /(?<!\\)\\n(?!(?:abla|atural|eq|e|ot|otin|onumber|u|eg|i|mid|less|gtr|leq|geq|leqslant|geqslant|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow|subset|supset|subseteq|supseteq|parallel|vdash|vDash|Vdash|VDash|exists|cong|sim|prec|succ|triangleleft|triangleright|earrow|warrow|ewline|ewcommand|oindent|olimits|umber|ormalsize|ormal)(?![A-Za-z]))/g;
+
+/** Display-only repair of an over-escaped question string (models sometimes
+ *  send literal backslash-n / backslash-quote, so a code fence shows as raw
+ *  text). Decodes ONLY when the string has NO real line break, HAS a code
+ *  fence, AND contains a literal `\n` that is not a TeX command; then `\n`
+ *  -> newline, `\"` -> `"`. A fence can't sit on one line, so it marks the
+ *  over-escaping; without one a literal `\n` is the question's own (`print("a\nb")`,
+ *  a Windows path). The stored call is never touched. */
+export function repairEscapedQuestionText(text: string): string {
+	if (/[\r\n]/.test(text) || !text.includes("```")) return text;
+	ESCAPED_NEWLINE.lastIndex = 0;
+	if (!ESCAPED_NEWLINE.test(text)) return text;
+	return text.replace(ESCAPED_NEWLINE, "\n").replace(/\\"/g, '"');
+}
+
 // ─── cross-field authoring validation (tool-schema refinements) ──────────
 // Enforced at the tool-call boundary (see the superRefines below): an invalid
 // question NEVER reaches the learner — the SDK returns the validation error

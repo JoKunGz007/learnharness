@@ -3,7 +3,10 @@ import type { AssistantMessage, ToolResultMessage, Usage } from "@earendil-works
 import { randomUUID } from "node:crypto";
 import { APP_IDENTITY, piEngineFor, type PiEngine } from "../models.ts";
 import { usageWasAdmitted } from "../subscription-request-cycle.ts";
+import { killLiveProcessesForSession } from "../claude-code/live-processes.ts";
+import { CLAUDE_CODE_PROVIDER } from "../../core/contracts/claude-code.ts";
 import { providerEventObserver } from "../provider-events.ts";
+import { backgroundCaptureStream, createBackgroundCapture } from "../background-capture.ts";
 import type { ModelRole } from "../../../config.ts";
 
 /**
@@ -42,7 +45,8 @@ export interface SubagentRunOptions {
 	shouldStop?: (message: AssistantMessage, toolResults: ToolResultMessage[]) => boolean;
 	/** Debug: when set AND LH_PROVIDER_EVENTS=1, raw provider stream
 	 *  events append to data/debug/provider-events/<chatId>.jsonl (context
-	 *  "job:<role>"). Absent or env-off → no observer. */
+	 *  "job:<role>"). Absent or env-off → no observer.
+	 *  Also identifies the source in opt-in LH_BACKGROUND_CAPTURE captures. */
 	chatId?: string;
 }
 
@@ -60,15 +64,31 @@ export function subagentEngine(role: ModelRole, override?: PiEngine): PiEngine {
 	return override ?? piEngineFor(role);
 }
 
+/** Fork: `claude-code` hands a parallel tool batch to pi one call at a time;
+ *  every slice after the first is a zero-usage message, not a model request,
+ *  so it must not spend `maxTurns` (a research job once capped out on 4 real
+ *  calls, before writing its brief). Other providers always count: one that
+ *  reports no usage must still hit the cap. MAX_SLICES_PER_CALL is the same
+ *  rule for claude-code itself: no usage must not mean no cap. */
+export const MAX_SLICES_PER_CALL = 4;
+
+export function isModelCall(message: Pick<AssistantMessage, "provider" | "usage">): boolean {
+	const { input, output, cacheRead, cacheWrite } = message.usage;
+	return message.provider !== CLAUDE_CODE_PROVIDER || input + output + cacheRead + cacheWrite > 0;
+}
+
 export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRunOptions): Promise<SubagentRunResult> {
 	const engine = subagentEngine(opts.role, opts.engine);
 	let turns = 0;
+	let messages = 0;
 	// Debug recorder (owner, 2026-10-04): raw provider events per job run.
 	const providerEvents = opts.chatId ? providerEventObserver(opts.chatId, `job:${opts.role}`) : undefined;
+	const sessionId = randomUUID();
+	const capture = createBackgroundCapture({ role: opts.role, runId: sessionId, sourceId: opts.chatId });
 	const agent = new Agent({
 		identity: APP_IDENTITY,
 		// One unsaved conversation per invocation, stable through every turn.
-		sessionId: randomUUID(),
+		sessionId,
 		initialState: {
 			systemPrompt: opts.systemPrompt,
 			model: engine.model,
@@ -76,13 +96,14 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 			tools,
 			messages: opts.messages ?? [],
 		},
-		streamFn: engine.streamFn,
+		streamFn: backgroundCaptureStream(engine.streamFn, capture),
 		...(providerEvents ? { onProviderStreamEvent: providerEvents } : {}),
 		// 0.87.1: shouldStopAfterTurn → finishTurn (same call point; "end"
 		// exits before the steering poll, exactly the old boolean-true).
 		finishTurn: (turn) => {
-			turns++;
-			return turns >= opts.maxTurns || opts.shouldStop?.(turn.message, turn.toolResults) === true
+			messages++;
+			if (isModelCall(turn.message)) turns++;
+			return turns >= opts.maxTurns || messages >= opts.maxTurns * MAX_SLICES_PER_CALL || opts.shouldStop?.(turn.message, turn.toolResults) === true
 				? { action: "end" }
 				: undefined;
 		},
@@ -95,6 +116,7 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 	let step = 0;
 	let errorMessage: string | undefined;
 	let aborted = false;
+	let runFailure: unknown;
 
 	try {
 		agent.subscribe((event: AgentEvent) => {
@@ -102,6 +124,7 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 				case "message_end":
 					if ((event.message as { role?: string }).role === "assistant") {
 						const m = event.message as AssistantMessage;
+						capture?.reply(m);
 						if (m.stopReason === "aborted") {
 							// The call was cancelled — no completed step, no billed
 							// usage (the abort path asserts zero steps).
@@ -113,6 +136,8 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 						opts.onUsage?.(m.usage);
 						opts.onAssistantMessage?.(m, step);
 						if (m.stopReason === "error") errorMessage = m.errorMessage;
+					} else if (event.message.role === "toolResult") {
+						capture?.toolResult(event.message);
 					}
 					break;
 				case "tool_execution_start":
@@ -126,13 +151,21 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 			timestamp: Date.now(),
 		});
 		else await agent.continue();
+	} catch (error) {
+		runFailure = error;
+		throw error;
 	} finally {
 		opts.abortSignal?.removeEventListener("abort", onAbort);
+		// Fork: a run stopped with tool calls pending would otherwise leave its
+		// CLI idle until the live-process timeout.
+		killLiveProcessesForSession(sessionId);
+		capture?.finish(runFailure);
 	}
 
 	if (aborted || opts.abortSignal?.aborted) {
 		const err = new Error("aborted");
 		err.name = "AbortError";
+		capture?.finish(err);
 		throw err;
 	}
 	if (errorMessage !== undefined) throw new Error(errorMessage);

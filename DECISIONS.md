@@ -11,6 +11,9 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-006 — 2026-10-26 — Plan usage from Claude Code's stream, shown next to the model picker
 - D-007 — 2026-10-31 — Proposed: replace our #151 copy with upstream's `claude-code` provider plus a fork patch
 - D-008 — 2026-10-31 — Web search through Tavily
+- D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
+- D-010 — 2026-11-01 — Hold unanswered questions 55 minutes; fixes to D-009's consequences
+- D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -69,3 +72,24 @@ Decision: Use a Tavily key (owner's, saved in the Start-menu app's Settings) for
 Rationale: `--tools ""` turns off Claude Code's own search, so a search key is the only route. Tavily's free plan is 1,000 credits a month with no card; most sources say Brave now needs a card, with about $5 monthly credit (not confirmed on Brave's own page). The one independent benchmark found (AIMultiple, December 2025) put Brave about 1 point ahead, which doesn't outweigh that at personal volume.
 Consequences: Basic searches, about 1,000 a month. `src/server/search.ts` prefers Tavily if both keys exist.
 Evidence: live Teach turn in the installed app, 2026-10-31: `web_search` ran, 6 sources.
+
+## D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
+Status: accepted (on branch `port/upstream-0.4.1`, merge `134d384`; not yet in `main`). Supersedes D-007 and the #151 part of D-001; D-001's subscription-only rule stands.
+Decision: Owner chose to start before the 1 Nov exam, on a separate branch and worktree. Owner's four calls: drop Antigravity; pinned model ids (the 14 pi-ai Anthropic ids, no `opus`/`sonnet`/`haiku` aliases), so saved `claude-*-5-5` settings need no migration; keep the `auth status` display; keep `allowBackgroundUse`, now `settings.claudeCode.allowBackgroundUse` (absent = on).
+Rationale: as D-007. Pinned ids stop a model changing under a saved setting.
+Consequences: fork patches are marked `Fork:` in `src/agent/claude-code/`, `src/server/claude-code*.ts`, `components/settings/claude-code-status.tsx`. Changes from the old build: MCP tool timeout is upstream's 30 minutes (was 24 hours; a longer-held question gets a fresh process that replays it); old `local-agents.json` is not read; re-enabling background use doesn't wake parked follow-ups; the per-slot "Enable background use" button is gone.
+Evidence: `PLAN.md` § Current checkpoint.
+
+## D-010 — 2026-11-01 — Hold unanswered questions 55 minutes; fixes to D-009's consequences
+Status: accepted. Corrects D-009: its "30 minutes" was wrong; retention was upstream's 10 minutes (`LIVE_PROCESS_IDLE_TIMEOUT_MS`).
+Decision: Owner chose 55 minutes of retention, with `MCP_TOOL_TIMEOUT` raised to 60 to outlast it. Code review of the port also: `allowBackgroundUse` is one gate in `subscription-connections.ts`, enforced at dispatch in `src/agent/models.ts` so it covers helper agents; toggling it fires `onSubscriptionChange`, so parked follow-ups wake; thinking `off` passes no `--effort` and sets `MAX_THINKING_TOKENS=0`, as the old build did.
+Rationale: past the history's 1-hour prompt cache a held process saves almost nothing, so 24 hours (the old build) only adds idle processes; inside the hour, a held process avoids a replay's cache rewrite.
+Consequences: one idle CLI process per waiting chat, for up to 55 minutes; memory not measured. A steer to a disabled `claude-code` now gets the 403 rather than the 503. Cache and timeout numbers not measured live.
+Evidence: `tests/claude-code-gate.test.ts`, `tests/claude-code-stream.test.ts`.
+
+## D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
+Status: accepted (owner's choices, 2026-11-01).
+Decision: Guard: teacher only, once the plan exists, a `check` quiz or `ask_user_question` with no lesson text since the learner's last input is refused once; a second try passes; `predict` is exempt. Usage: the badge adds this chat's estimated share, counting only requests in the current 5-hour window, background jobs included. Scrolled up: the answer field stays usable, a multiple-choice question becomes a collapsible row above it, and Return with nothing selected doesn't submit.
+Rationale: Refusing once keeps a turn from looping or hanging, at the cost of a rare bare question getting through. Planning questions need no lesson. A window-only share is comparable with the 5h figure.
+Consequences: All `claude-code` cache writes are priced at 2× (the 1-hour rate) because the stream reports only a total; only `claude-code:` models count. `explain` questions aren't guarded.
+Evidence: `tests/lesson-text-gate.test.ts`, `tests/chat-share.test.ts`, `tests/render-cards.test.tsx`.

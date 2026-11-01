@@ -1,5 +1,6 @@
 import { Agent } from "@earendil-works/pi-agent-core";
-import type { AgentEvent, AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage, AgentTool, BeforeToolCallContext } from "@earendil-works/pi-agent-core";
+import { lessonTextRefusal } from "./lesson-text-gate.ts";
 import { invalidInputResult, questionResult } from "./tool-execute.ts";
 import { providerEventObserver } from "./provider-events.ts";
 import type { Usage } from "@earendil-works/pi-ai";
@@ -17,6 +18,8 @@ import {
 import { practiceTools, type PracticeToolContext } from "./tools/practice.ts";
 import { healToolRecord, withArgumentHeal } from "./tools/heal.ts";
 import { sendToUserTool } from "./tools/send-to-user.ts";
+import { createReadTool, readTool } from "./tools/read.ts";
+import { CLAUDE_CODE_PROVIDER } from "./claude-code/constants.ts";
 import { quizInputObject, quizInputProblems } from "../core/question-core.ts";
 import { QUESTION_TOOLS, type EnabledTools } from "../core/pending.ts";
 import { toLlmMessages, nativeInputCause, PRACTICE_PROBLEM_TOOL } from "../core/native-messages.ts";
@@ -174,7 +177,7 @@ function makeQuestionStopper(kind: AgentKind) {
 	};
 }
 
-function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: AgentTool<any, any>[]) {
+function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: AgentTool<any, any>[], planExists?: () => boolean) {
 	// Practice never reaches the role fallback (the handler ALWAYS injects
 	// the session's conversation engine — practice rides the same
 	// conversation-spec resolution as teaching); the cast keeps AgentKind
@@ -201,8 +204,10 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 			// Match Claude across providers (including OpenRouter), not the API
 			// transport. Explicit test registries remain caller-owned.
 			tools: [
-				...tools,
-				...(opts.tools === undefined && engine.model.id.toLowerCase().includes("claude")
+				...tools.map((tool) => tool.name === "read" && tool.execute === readTool.execute
+					? { ...tool, execute: createReadTool(engine.model).execute as AgentTool<any>["execute"] }
+					: tool),
+				...(opts.tools === undefined && (engine.model.provider === CLAUDE_CODE_PROVIDER || engine.model.id.toLowerCase().includes("claude"))
 					? [withArgumentHeal(sendToUserTool)]
 					: []),
 			],
@@ -216,6 +221,22 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 		// Wave C registerLiveAgent-before-runPiTurn design depends on.
 		// undefined preserves normal scheduling (the old boolean false).
 		finishTurn: (turn) => (stopper(turn) ? { action: "end" } : undefined),
+		// Lesson-text rule (owner, 2026-11-01): teacher only, once the plan
+		// exists. The block is an error result, so the stopper above does not
+		// end the run and the model retries (see lesson-text-gate.ts).
+		...(kind === "teacher" && planExists ? {
+			beforeToolCall: async (ctx: BeforeToolCallContext) => {
+				const reason = lessonTextRefusal({
+					toolName: ctx.toolCall.name,
+					toolCallId: ctx.toolCall.id,
+					args: ctx.args,
+					messages: ctx.context.messages,
+					assistantContent: ctx.assistantMessage.content,
+					enforce: planExists,
+				});
+				return reason ? { block: true, reason } : undefined;
+			},
+		} : {}),
 		// Wave C (2026-09-26, owner correction same day): markers handed to a
 		// live run drain from pi's STEERING queue — the lesson loop is one
 		// continuous teach→quiz→teach run, so delivery must inject at turn
@@ -289,7 +310,10 @@ export function createTeacherAgent(
 	opts: AgentBuildOptions = {},
 ) {
 	const tools = opts.tools ?? (ctx ? createTeacherTools(ctx, opts.toolToggles) : bareQuestionTools());
-	return baseAgentOptions("teacher", opts, Object.values(tools));
+	// The plan exists once the live chat record carries a map (same read as
+	// tools.ts nodeIdProblem). Without ctx (bare test agents) the rule is off.
+	const planExists = ctx ? () => (ctx.chatStore.getChat(ctx.chatId)?.tree?.nodes.length ?? 0) > 0 : undefined;
+	return baseAgentOptions("teacher", opts, Object.values(tools), planExists);
 }
 
 /** The bare teach question set (tests, bare agents): quiz with the shared

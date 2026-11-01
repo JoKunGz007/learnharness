@@ -75,6 +75,8 @@ export const LEDGER_FILES = {
  * log. Read-modify-write like a chat file, not append-only like the ledgers.
  */
 export const SOURCES_FILE = path.join(PATHS.graph, "sources.json");
+/** Presentation-only source names/folder placement; never extraction identity. */
+export const SOURCE_ORGANIZATION_FILE = path.join(PATHS.graph, "source-organization.json");
 /** The layout ledger (read-modify-write like sources.json): nodeId →
  *  {x,y} resting positions from the incremental settle (core/layout.ts).
  *  Carries an updatedAt stamp for future live-physics conflict handling. */
@@ -110,13 +112,6 @@ export const GRAPH_FORMAT_FILE = path.join(PATHS.graph, "format.json");
  * from birth, stamped from the strong slot.)
  */
 export const SETTINGS_FILE = path.join(DATA_ROOT, "settings.json");
-
-/**
- * Local agent connections (docs/architecture.md §8.2): the learner's
- * enabled/background-use choices for locally installed agent runtimes.
- * Not a secret — the runtimes keep their own sign-in.
- */
-export const LOCAL_AGENTS_FILE = path.join(DATA_ROOT, "local-agents.json");
 
 /**
  * User prompt-override files (settings-storage wave, 2026-09-19): the

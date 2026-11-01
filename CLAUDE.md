@@ -10,15 +10,15 @@ Goal of the fork: run it on the owner's **Claude subscription** (Claude Code log
 
 ## Remotes and branches
 
-- `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private). `pdomenico` = source of the Claude backend.
-- `main` = upstream main + upstream PR #151 (pdomenico, `feat/local-agent-connections`) + upstream PRs #163, #157, #139, #127 + our fixes. Sync: `git fetch upstream && git merge upstream/main`. If #151 is merged upstream, drop our copy in favour of theirs.
+- `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private).
+- This branch = upstream 0.4.1 + upstream PRs #163, #157, #139, #127 + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
 - AGPL: if this is ever offered to others over a network, the source must be offered too. Personal use: no obligation.
 
-## Claude subscription backend (from PR #151)
+## Claude subscription backend (upstream's provider + fork patches)
 
-- `src/agent/local-agents/claude.ts` spawns the locally installed Claude Code: `claude -p --input-format stream-json --output-format stream-json`, `--tools ""`, `--setting-sources ""`, `--strict-mcp-config`, `--no-session-persistence`, empty temp cwd. App tools reach it through a loopback MCP server (`mcp-server.ts`, 127.0.0.1 + per-run bearer token). `ANTHROPIC_API_KEY` and other auth reroutes are scrubbed from the child env, so usage always bills the subscription.
+- `src/agent/claude-code/stream.ts` spawns the locally installed Claude Code in stream-json mode, with `--tools ""`, `--setting-sources ""` and a fixed empty cwd. App tools reach it through `tool-bridge.ts`. `ANTHROPIC_API_KEY` and other auth reroutes are scrubbed from the child env (`env.ts`), so usage always bills the subscription. Fork patches are marked `Fork:`.
 - The app never sees a Claude token; Claude Code uses its own `claude auth login`. This is the route Anthropic's support article allows (`claude -p`/Agent SDK draw from plan limits); don't switch to pi-ai's Anthropic OAuth or `claude setup-token` (that makes the app itself a claude.ai-login client, which Anthropic's terms forbid for third-party apps).
-- Fork fix: on Windows, npm installs only put `claude.cmd` on PATH; `knownDirs()` also searches `%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin` for the native `claude.exe`. `LH_CLAUDE_BIN` overrides.
+- Fork fix: on Windows, npm installs only put `claude.cmd` on PATH; `binary.ts` also searches `%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin` for the native `claude.exe`. `LH_CLAUDE_BIN` overrides.
 - Live runs spend Pro limits. Test on Haiku, one or two turns.
 
 ## Run on Windows
@@ -28,10 +28,10 @@ npm ci
 npx next dev            # http://localhost:3000 (or the browser pane: preview_start "learnharness")
 ```
 
-Then Settings → Providers → Subscriptions → **Claude (local)** → enable, and pick `claude-code:*` models. Status API: `curl -s localhost:3000/api/connections/local`.
+Then Settings → Providers → External CLI → **Claude Code** → enable, and pick `claude-code:*` models. Status API: `curl -s localhost:3000/api/claude-code`.
 
 - `npm test` uses POSIX env syntax; from Git Bash run `NODE_ENV=test npx tsx --test tests/<file>.test.ts`. Typecheck: `npx tsc --noEmit`.
-- Known Windows test failures: `tests/local-agents-*.test.ts` (8) use `.mjs` fakes as the CLI binary, which Windows can't execute; plus upstream's POSIX file-mode assertions.
+- Known Windows test failures: POSIX file-mode and signal assertions (`GOTCHAS.md`).
 - App data: `data/` (gitignored). Long command output → `.tmp/out.log` (gitignored), then grep/tail.
 
 ## Desktop app (Windows installer)

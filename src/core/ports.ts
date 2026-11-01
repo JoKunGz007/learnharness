@@ -27,7 +27,6 @@ import type {
 	NotesSource,
 } from "./contracts.ts";
 import type { UserSettings } from "./settings.ts";
-import type { LocalAgentPreferences, LocalAgentProviderId } from "./contracts/local-agents.ts";
 
 // ─── ChatStore — the session record's home (data/chats) ─────────────────────
 
@@ -102,6 +101,8 @@ export interface GraphStore {
 	upsertSource(source: NotesSource): void;
 	/** Every notes source record, by id order-insensitive. */
 	readSources(): NotesSource[];
+	/** Remove imported-source bookkeeping only; the service removes graph traces first. */
+	deleteSources(ids: ReadonlySet<string>): number;
 	/** Append one run's usage to a source record — idempotent per
 	 *  startedAt, mirroring ChatRecord.extractions. */
 	appendSourceUsage(id: string, entry: ExtractionRunUsage): void;
@@ -127,6 +128,12 @@ export interface GraphStore {
 		coverage?: CoverageEntry[];
 		checkpoints?: SessionCheckpoint[];
 	}): void;
+}
+
+/** Separate from graph ledgers and source identity, for future shared views. */
+export interface SourceOrganizationStore {
+	read(): import("./source-organization.ts").SourceOrganization;
+	write(state: import("./source-organization.ts").SourceOrganization): void;
 }
 
 // ─── JobStore — background sub-agent jobs (data/jobs) ─────────────────────────
@@ -221,18 +228,4 @@ export interface AuthStore {
 	setAuthVar(name: string, value: string): void;
 	/** Remove one VAR if present (absent = no-op, still a silent success). */
 	deleteAuthVar(name: string): void;
-}
-
-
-// ─── LocalAgentPreferenceStore — local agent connections (§8.2) ─────────────
-
-/**
- * The learner's per-connection choices for locally installed agent
- * runtimes (enabled, background use) — the ONLY state LearnHarness keeps
- * for them; the runtimes own their sign-in. Absent or corrupt file = no
- * choices yet (every connection off). Never throws on read.
- */
-export interface LocalAgentPreferenceStore {
-	read(): Partial<Record<LocalAgentProviderId, LocalAgentPreferences>>;
-	write(providerId: LocalAgentProviderId, preferences: LocalAgentPreferences): void;
 }

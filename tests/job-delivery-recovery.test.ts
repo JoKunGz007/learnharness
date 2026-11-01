@@ -131,6 +131,8 @@ test("missing or blank research question records an honest failure without invok
 
 test("repeated recovery behind a question yields one handed and one durable marker", async () => {
 	const owner = chat(true); const { job, steer } = pending(owner.id);
+	const settledAt = "2026-01-01T00:00:00.000Z";
+	stores.jobStore.updateJob(job.id, { updatedAt: settledAt });
 	let wakes = 0; setTurnRunner(async () => { wakes++; return 500; });
 	sweep(); sweep(); sweep();
 	const first = deliverJobResult(steer);
@@ -142,6 +144,7 @@ test("repeated recovery behind a question yields one handed and one durable mark
 	assert.equal(wakes, 0);
 	assert.equal(stores.chatStore.getChat(owner.id)!.messages.filter((message) => message.id === steer.id).length, 1);
 	assert.equal(stores.jobStore.getJob(job.id)!.delivery?.status, "delivered");
+	assert.equal(stores.jobStore.getJob(job.id)!.updatedAt, settledAt, "acknowledging delivery is not job activity");
 });
 
 for (const refused of [409, 403]) test(`duplicate during a ${refused} wake retains one logical owner`, async () => {

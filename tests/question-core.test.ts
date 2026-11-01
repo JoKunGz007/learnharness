@@ -18,6 +18,7 @@ import {
 	DEFAULT_CONFIDENCE_INDEX,
 	isCorrect,
 	normalizeOptions,
+	repairEscapedQuestionText,
 	quizInputProblems,
 	explainInputBase,
 	explainInputObject,
@@ -819,3 +820,36 @@ describe("the quiz role field (predict | check)", () => {
 		assert.equal(cleaned.type, "check", "role survives the display parse (the dock gates collapse + labels on it)");
 	});
 });
+
+// ─── repairEscapedQuestionText ──────────────────────────────────────────────
+
+describe("repairEscapedQuestionText", () => {
+	it("decodes an over-escaped one-line string with a code fence", () => {
+		const bad = 'What prints?\\n\\n```python\\nprint(\\"a\\")\\n```';
+		assert.equal(repairEscapedQuestionText(bad), 'What prints?\n\n```python\nprint("a")\n```');
+	});
+	it("leaves a properly formatted string alone, including \\n inside code", () => {
+		const ok = 'What prints?\n\n```python\nprint("a\\nb")\n```';
+		assert.equal(repairEscapedQuestionText(ok), ok);
+	});
+	it("does not corrupt LaTeX \\nabla / \\neq on one line", () => {
+		for (const s of ["Compute $\\nabla f$ here", "Is $a \\neq b$ and $\\not\\in$?", "$\\nu$ and $\\ne$"]) {
+			assert.equal(repairEscapedQuestionText(s), s);
+		}
+	});
+	it("decodes the escape but keeps LaTeX in a fenced one-liner", () => {
+		assert.equal(repairEscapedQuestionText("Find $\\nabla f$.\\n```\\nx\\n```"), "Find $\\nabla f$.\n```\nx\n```");
+	});
+	it("leaves a one-line question about an escape sequence alone", () => {
+		for (const s of ['What does `print("a\\nb")` output?', "What does `\\n` do in C?", "Open C:\\new\\notes.txt"]) {
+			assert.equal(repairEscapedQuestionText(s), s);
+		}
+	});
+	it("keeps the other n-commands and a row break before n, even when fenced", () => {
+		const fence = "\\n```\\nx\\n```";
+		for (const math of ["$a \\ncong b$", "$\\natural$", "$A \\nRightarrow B$", "$a \\nsim b$", "$x \\nonumber$", "$\\begin{pmatrix}1 \\\\n\\end{pmatrix}$"]) {
+			assert.ok(repairEscapedQuestionText(math + fence).startsWith(math + "\n"), math);
+		}
+	});
+});
+

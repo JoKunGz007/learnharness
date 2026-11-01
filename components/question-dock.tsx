@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownIcon, ChevronRightIcon, PlayIcon } from "lucide-react";
+import { ArrowDownIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, PlayIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { finishDictation, isDictationActive, joinDictation, useDictationTarget } from "@/components/dictation";
 import { useEnterSubmits } from "@/components/enter-submits";
+import { PathInput } from "@/components/path-input";
+import { MalformedQuestion } from "@/components/malformed-question";
 import { ToolContentResponse } from "@/components/ai-elements/message";
 import { cn } from "@/lib/utils";
 import {
 	buildAnswer,
 	repairMathForDisplay,
+	repairEscapedQuestionText,
 	normalizeQuizType,
 	CONFIDENCE_STOPS,
 	DEFAULT_CONFIDENCE_INDEX,
@@ -79,8 +82,8 @@ export interface QuestionDockProps {
 	/** Escape in a question field stops dictation (STT wave) — threaded
 	 *  from the page that owns the dictation hook. */
 	onEscape?: () => void;
-	/** The keyboard machine (wave B) is armed only while the dock is
-	 *  expanded — the collapsed bar keeps its native Enter-to-expand. */
+	/** The keyboard machine (wave B) is armed only while the choices are
+	 *  on screen (expanded, or opened from the scrolled-up row). */
 	active?: boolean;
 	/** Session phase at the question — scales the thinking field: probing
 	 *  stays quick (one row), teaching invites dumping (three rows). */
@@ -118,6 +121,9 @@ export function QuestionDock({
 	// ("recall") is explain-shaped. Old records keep the teach names.
 	const canonical =
 		toolName === "probe" ? "quiz" : toolName === "recall" ? "explain" : toolName;
+	// Scrolled-up choice questions: whether the choices are opened in place
+	// (no scroll jump). Local on purpose — the fold state stays the overlay's.
+	const [peek, setPeek] = useState(false);
 	// The chip's display name carries the tool's OWN name (owner
 	// 2026-10-09): probe-phase questions label Probe/Recall in the
 	// composer; teach tools keep the standing labels.
@@ -131,36 +137,50 @@ export function QuestionDock({
 	const parsed =
 		canonical === "quiz" ? parseQuizInput(input) : canonical === "explain" ? parseExplainInput(input) : parseAskInput(input);
 	if (!parsed) {
-		return (
-			<div data-testid="malformed-question" className="rounded-xl border border-dashed bg-card/60 p-3 text-sm text-muted-foreground">
-				This question arrived malformed — the transcript keeps the retry.
-			</div>
-		);
+		return <MalformedQuestion />;
 	}
+	const layout = dockLayout({
+		expanded,
+		reveal,
+		choice: canonical === "quiz" || (canonical === "ask_user_question" && !!(parsed as AskToolInput).options?.length),
+		peek,
+	});
+	const chipLabel =
+		(canonical === "quiz" || canonical === "explain") &&
+		normalizeQuizType((parsed as { type?: unknown }).type) === "predict"
+			? "Prediction"
+			: undefined;
 	return (
 		<>
-			{!expanded && (
-				<QuestionDockBar
-					toolName={canonical}
+			{layout.bar === "peek" ? (
+				<QuestionDockPeekRow
+					toolName={canonical as "quiz" | "ask_user_question"}
 					question={parsed.question}
-					onExpand={onExpand}
-					variant={reveal ? "reveal" : "collapsed"}
+					open={peek}
+					onToggle={() => setPeek((p) => !p)}
 					toolLabel={toolLabel}
-					label={
-						(canonical === "quiz" || canonical === "explain") &&
-						normalizeQuizType((parsed as { type?: unknown }).type) === "predict"
-							? "Prediction"
-							: undefined
-					}
+					label={chipLabel}
 				/>
+			) : (
+				layout.bar && (
+					<QuestionDockBar
+						toolName={canonical}
+						question={parsed.question}
+						onExpand={onExpand}
+						variant={layout.bar}
+						toolLabel={toolLabel}
+						label={chipLabel}
+					/>
+				)
 			)}
-			<div className={expanded ? "dock-variant" : "invisible h-0 overflow-hidden"}>
+			<div className={layout.formVisible ? "dock-variant" : "invisible h-0 overflow-hidden"}>
 				<QuestionDockForm
 					toolName={toolName}
 					toolCallId={toolCallId}
 					input={parsed}
 					phase={phase}
-					active={expanded}
+					active={layout.choicesVisible}
+					choicesVisible={layout.choicesVisible}
 					onSubmit={onSubmit}
 					initialDraft={initialDraft}
 					onSaveDraft={onSaveDraft}
@@ -173,9 +193,26 @@ export function QuestionDock({
 	);
 }
 
+/**
+ * What the dock shows for a (expanded, reveal, choice, peek) state. Scrolled
+ * up (collapsed, not behind the teach reveal) the answer field STAYS visible:
+ * a choice question gets a collapsible row above it (choices open in place),
+ * an open-text question keeps the slim bar plus the answer field. Pure, for tests.
+ */
+export function dockLayout(s: { expanded: boolean; reveal: boolean; choice: boolean; peek: boolean }): {
+	bar: null | "reveal" | "peek" | "collapsed";
+	formVisible: boolean;
+	choicesVisible: boolean;
+} {
+	if (s.expanded) return { bar: null, formVisible: true, choicesVisible: true };
+	if (s.reveal) return { bar: "reveal", formVisible: false, choicesVisible: false };
+	if (s.choice) return { bar: "peek", formVisible: true, choicesVisible: s.peek };
+	return { bar: "collapsed", formVisible: true, choicesVisible: false };
+}
+
 /** A plain-text teaser of a question for the collapsed bar: unwrap math, flatten common LaTeX. */
 function teaserText(q: string): string {
-	return repairMathForDisplay(q)
+	return repairMathForDisplay(repairEscapedQuestionText(q))
 		.replace(/\\\(([\s\S]*?)\\\)/g, "$1") // \(...\) inline math
 		.replace(/\\\[([\s\S]*?)\\\]/g, "$1") // \[...\] display math
 		.replace(/\$\$?([^$]*)\$\$?/g, "$1") // standard $...$/$$...$$ math
@@ -251,6 +288,43 @@ export function QuestionDockBar({
 	);
 }
 
+/** The scrolled-up choice question's row: toggles the choices open/closed in
+ *  place (aria-expanded) — never scrolls, never expands the dock. */
+export function QuestionDockPeekRow({
+	toolName,
+	question,
+	open,
+	onToggle,
+	label,
+	toolLabel,
+}: {
+	toolName: "quiz" | "ask_user_question";
+	question: string;
+	open: boolean;
+	onToggle: () => void;
+	label?: string;
+	toolLabel?: string;
+}) {
+	return (
+		<button
+			type="button"
+			data-testid="question-dock-peek"
+			aria-expanded={open}
+			onClick={onToggle}
+			className="dock-variant flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-accent/40"
+		>
+			<span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+				{label ?? toolLabel ?? (toolName === "quiz" ? "Check" : "Question")}
+			</span>
+			<span className="min-w-0 flex-1 truncate text-muted-foreground">{teaserText(question)}</span>
+			<span className="flex shrink-0 items-center gap-1 text-xs font-medium">
+				{open ? "Hide choices" : "Choices"}
+				{open ? <ChevronDownIcon className="size-3.5" /> : <ChevronUpIcon className="size-3.5" />}
+			</span>
+		</button>
+	);
+}
+
 /** The expanded question: label, question, options, and the unified bottom row. */
 function QuestionDockForm({
 	toolName,
@@ -264,7 +338,13 @@ function QuestionDockForm({
 	onEscape,
 	dictationClaim = true,
 	compactionRunning = false,
-}: Omit<QuestionDockProps, "expanded" | "onExpand" | "reveal">) {
+	choicesVisible = true,
+}: Omit<QuestionDockProps, "expanded" | "onExpand" | "reveal"> & {
+	/** False while scrolled up with the choices closed: the question area and
+	 *  confidence stay MOUNTED (selection survives) but hidden; the answer /
+	 *  thinking field below stays live. */
+	choicesVisible?: boolean;
+}) {
 	const kind = toolQuestionKind(toolName);
 
 	// Canonical QuestionData, built once per question. Quiz options are
@@ -439,8 +519,8 @@ function QuestionDockForm({
 	   expanded — collapsed, the bar's native Enter expands it. */
 	const [kbdIdx, setKbdIdx] = useState<number | null>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
-	const otherInputRef = useRef<HTMLInputElement>(null);
-	const thinkingRef = useRef<HTMLTextAreaElement>(null);
+	const otherInputRef = useRef<HTMLDivElement>(null);
+	const thinkingRef = useRef<HTMLDivElement>(null);
 	// One row past the options is the trailing row: quiz → don't-know,
 	// ask → Other (a question never has both). Text mode (ask/explain)
 	// has no rows — the composer IS the answer surface.
@@ -473,7 +553,7 @@ function QuestionDockForm({
 	const focusRow = (idx: number) => {
 		const row = rootRef.current?.querySelector(`[data-kbdrow="${idx}"]`) as HTMLElement | null;
 		if (!row) return;
-		const el = (row.querySelector("input") as HTMLElement | null) ?? row;
+		const el = (row.querySelector("input, [data-file-path-input]") as HTMLElement | null) ?? row;
 		el.focus();
 	};
 
@@ -561,6 +641,7 @@ function QuestionDockForm({
 
 	return (
 		<div ref={rootRef} data-testid="question-dock">
+			<div {...(choicesVisible ? { "data-dock-choices-open": "" } : {})} className={choicesVisible ? "contents" : "hidden"}>
 			{/* Question area — scrolls internally if very tall; the bottom row stays put.
 			    Capped by the measured column (--dock-max-h; the old fixed 55dvh cut
 			    long questions short — owner round, 2026-10-05). */}
@@ -580,7 +661,7 @@ function QuestionDockForm({
 					{qd.mode === "multi-select" && " · select all that apply"}
 				</div>
 				<div className="mb-3 font-medium">
-					<ToolContentResponse>{qd.question}</ToolContentResponse>
+					<ToolContentResponse>{repairEscapedQuestionText(qd.question)}</ToolContentResponse>
 				</div>
 				{qd.context && (
 					<div className="mb-3 text-sm text-muted-foreground">
@@ -696,11 +777,12 @@ function QuestionDockForm({
 										</span>
 									)}
 								</span>
-								<input
+								<PathInput
 									ref={otherInputRef}
+									singleLine
 									value={other}
-									onChange={(e) => {
-										setOther(e.target.value);
+									onValueChange={(value) => {
+										setOther(value);
 										// Typing selects the row — displacing in
 										// single-select, alongside the siblings in multi.
 										setSel((prev) => (prev.otherSelected ? prev : toggleOther(selectMode, prev)));
@@ -830,6 +912,7 @@ function QuestionDockForm({
 					</div>
 				</div>
 			)}
+			</div>
 
 			{/* The learner's half of the dock — a composer TWIN: a labeled, bordered
 			    field with Submit docked inside, exactly like the chat composer's
@@ -851,11 +934,11 @@ function QuestionDockForm({
 						{qd.mode === "text" ? "Your answer" : "YOUR THINKING"}
 					</div>
 					{qd.mode === "text" ? (
-						<textarea
+						<PathInput
 							value={text}
-							onChange={(e) => {
-								answerTextRef.current = e.target.value;
-								setText(e.target.value);
+							onValueChange={(value) => {
+								answerTextRef.current = value;
+								setText(value);
 							}}
 							onKeyDown={(e) => {
 								// Esc ends dictation (the dictate decisions: click-again
@@ -875,16 +958,15 @@ function QuestionDockForm({
 								}
 							}}
 							placeholder="Type your answer…"
-							rows={1}
 							className="field-sizing-content lh-input max-h-48 min-h-10 w-full resize-none bg-transparent px-2.5 py-2 outline-none placeholder:text-muted-foreground"
 						/>
 					) : (
-						<textarea
+						<PathInput
 							ref={thinkingRef}
 							value={thinking}
-							onChange={(e) => {
-								thinkingTextRef.current = e.target.value;
-								setThinking(e.target.value);
+							onValueChange={(value) => {
+								thinkingTextRef.current = value;
+								setThinking(value);
 							}}
 							onKeyDown={(e) => {
 								// Esc ends dictation (the dictate decisions: click-again
@@ -905,7 +987,6 @@ function QuestionDockForm({
 								}
 							}}
 							placeholder="Why this answer? Whatever comes to mind."
-							rows={1}
 							className={cn(
 								"field-sizing-content lh-input max-h-48 w-full resize-none bg-transparent px-2.5 py-2 outline-none placeholder:text-muted-foreground/70",
 								// Phase-scaled prominence: teaching invites depth,

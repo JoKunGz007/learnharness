@@ -7,6 +7,10 @@ const w = (pct: number) => ({ pct, resetsAt: 1793025600_000 });
 const view = (fiveHour: ReturnType<typeof w> | null, sevenDay: ReturnType<typeof w> | null) => renderToStaticMarkup(<PlanUsageView usage={{ fiveHour, sevenDay, at: 0 }} now={30_000} />);
 
 describe("plan usage badge", () => {
+	it("hides the chat share when the chat has no Claude Code usage", () => {
+		const html = renderToStaticMarkup(<PlanUsageView usage={{ fiveHour: w(25), sevenDay: null, at: 0 }} now={30_000} chat={{ turns: [] }} />);
+		assert.doesNotMatch(html, /plan-usage-chat/);
+	});
 	it("colours at 49/50/79/80", () => {
 		assert.match(view(w(49), null), /#7FB77E[^>]*>49%/);
 		assert.match(view(w(50), null), /#E0A04A[^>]*>50%/);
@@ -26,6 +30,17 @@ describe("plan usage badge", () => {
 		assert.equal(renderToStaticMarkup(<PlanUsageView usage={null} />), "");
 		assert.equal(view(null, null), "");
 		assert.equal(renderToStaticMarkup(<PlanUsageBadge refreshKey={0} />), "");
+	});
+	it("appends the chat share only with chat data", () => {
+		const usage = { fiveHour: w(7), sevenDay: w(28), at: 0 };
+		const turn = { id: "t", messageId: "m", at: new Date(1793025600_000 - 3600_000).toISOString(), model: "claude-code:claude-opus-5-5",
+			steps: [{ inputTokens: 100_000, cacheWriteTokens: 100_000, cacheReadTokens: 1_000_000, outputTokens: 10_000, reasoningTokens: undefined }] }; // $1.6 -> 4.2%
+		const now = 1793025600_000 - 3500_000;
+		const withChat = renderToStaticMarkup(<PlanUsageView usage={usage} now={now} chat={{ turns: [turn] }} />);
+		assert.match(withChat, /chat ~4\.2%/);
+		assert.match(withChat, /title="[^"]*estimated share/);
+		assert.ok(!renderToStaticMarkup(<PlanUsageView usage={usage} now={now} />).includes("chat"));
+		assert.equal(renderToStaticMarkup(<PlanUsageView usage={null} chat={{ turns: [turn] }} />), "");
 	});
 	it("title text", () => {
 		const t = usageTitle({ fiveHour: w(25), sevenDay: w(57), at: 0 }, 3 * 60_000);
