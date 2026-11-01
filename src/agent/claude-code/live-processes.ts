@@ -38,6 +38,15 @@ export function getLiveProcess(toolCallIds: string[], owner: symbol, sessionId: 
 	return null;
 }
 
+/** Fork: a subagent's session ends with its run, so nothing can resume these. */
+export function killLiveProcessesForSession(sessionId: string): void {
+	for (const process of [...liveProcesses.keys()]) {
+		if (process.sessionId !== sessionId) continue;
+		removeLiveProcess(process);
+		process.kill();
+	}
+}
+
 export function removeLiveProcess(process: LiveProcess): void {
 	clearTimeout(liveProcesses.get(process));
 	liveProcesses.delete(process);

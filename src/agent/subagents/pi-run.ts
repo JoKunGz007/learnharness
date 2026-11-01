@@ -3,6 +3,8 @@ import type { AssistantMessage, ToolResultMessage, Usage } from "@earendil-works
 import { randomUUID } from "node:crypto";
 import { APP_IDENTITY, piEngineFor, type PiEngine } from "../models.ts";
 import { usageWasAdmitted } from "../subscription-request-cycle.ts";
+import { killLiveProcessesForSession } from "../claude-code/live-processes.ts";
+import { CLAUDE_CODE_PROVIDER } from "../../core/contracts/claude-code.ts";
 import { providerEventObserver } from "../provider-events.ts";
 import { backgroundCaptureStream, createBackgroundCapture } from "../background-capture.ts";
 import type { ModelRole } from "../../../config.ts";
@@ -62,6 +64,16 @@ export function subagentEngine(role: ModelRole, override?: PiEngine): PiEngine {
 	return override ?? piEngineFor(role);
 }
 
+/** Fork: `claude-code` hands a parallel tool batch to pi one call at a time;
+ *  every slice after the first is a zero-usage message, not a model request,
+ *  so it must not spend `maxTurns` (a research job once capped out on 4 real
+ *  calls, before writing its brief). Other providers always count: one that
+ *  reports no usage must still hit the cap. */
+export function isModelCall(message: Pick<AssistantMessage, "provider" | "usage">): boolean {
+	const { input, output, cacheRead, cacheWrite } = message.usage;
+	return message.provider !== CLAUDE_CODE_PROVIDER || input + output + cacheRead + cacheWrite > 0;
+}
+
 export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRunOptions): Promise<SubagentRunResult> {
 	const engine = subagentEngine(opts.role, opts.engine);
 	let turns = 0;
@@ -85,7 +97,7 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 		// 0.87.1: shouldStopAfterTurn → finishTurn (same call point; "end"
 		// exits before the steering poll, exactly the old boolean-true).
 		finishTurn: (turn) => {
-			turns++;
+			if (isModelCall(turn.message)) turns++;
 			return turns >= opts.maxTurns || opts.shouldStop?.(turn.message, turn.toolResults) === true
 				? { action: "end" }
 				: undefined;
@@ -139,6 +151,9 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 		throw error;
 	} finally {
 		opts.abortSignal?.removeEventListener("abort", onAbort);
+		// Fork: a run stopped with tool calls pending would otherwise leave its
+		// CLI idle until the live-process timeout.
+		killLiveProcessesForSession(sessionId);
 		capture?.finish(runFailure);
 	}
 
