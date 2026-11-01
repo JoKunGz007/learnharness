@@ -73,3 +73,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: not proven; the failing stream wasn't captured. Seen on 2 of 5 Haiku 5.5 medium turns with the message `test`. Claude Code sends thinking with empty deltas, so nothing shows while it thinks, and `stream.ts` keeps text blocks, so the model probably stopped without replying.
 - Avoid: `ClaudeTurn.finish` fails such a turn with a visible error when the learner spoke last. After tool results, a silent end stays normal.
 - Verify: `tests/claude-code-stream.test.ts` "thinking alone after a learner message".
+
+## `tests/jobs.test.ts` never exits
+- Symptom: a test run containing it hangs past any timeout with no failure in the log; the file reports `fail 1` only when killed, while all 56 subtests pass. A leftover run can keep node processes alive into the next session.
+- Cause: not traced; something keeps the process open after the last test. Same with the 2026-11-01 cap fix stashed, on the 0.4.1 port. Windows-only or not is unknown.
+- Avoid: run files one at a time under `timeout 60` and read the subtest counts; don't run it in a group.
+- Verify: `NODE_ENV=test timeout 60 npx tsx --test tests/jobs.test.ts` shows `pass 56`, exit 124.
