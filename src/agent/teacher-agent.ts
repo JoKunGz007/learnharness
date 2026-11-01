@@ -1,5 +1,6 @@
 import { Agent } from "@earendil-works/pi-agent-core";
-import type { AgentEvent, AgentMessage, AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentEvent, AgentMessage, AgentTool, BeforeToolCallContext } from "@earendil-works/pi-agent-core";
+import { lessonTextRefusal } from "./lesson-text-gate.ts";
 import { invalidInputResult, questionResult } from "./tool-execute.ts";
 import { providerEventObserver } from "./provider-events.ts";
 import type { Usage } from "@earendil-works/pi-ai";
@@ -176,7 +177,7 @@ function makeQuestionStopper(kind: AgentKind) {
 	};
 }
 
-function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: AgentTool<any, any>[]) {
+function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: AgentTool<any, any>[], planExists?: () => boolean) {
 	// Practice never reaches the role fallback (the handler ALWAYS injects
 	// the session's conversation engine — practice rides the same
 	// conversation-spec resolution as teaching); the cast keeps AgentKind
@@ -220,6 +221,22 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 		// Wave C registerLiveAgent-before-runPiTurn design depends on.
 		// undefined preserves normal scheduling (the old boolean false).
 		finishTurn: (turn) => (stopper(turn) ? { action: "end" } : undefined),
+		// Lesson-text rule (owner, 2026-11-01): teacher only, once the plan
+		// exists. The block is an error result, so the stopper above does not
+		// end the run and the model retries (see lesson-text-gate.ts).
+		...(kind === "teacher" && planExists ? {
+			beforeToolCall: async (ctx: BeforeToolCallContext) => {
+				const reason = lessonTextRefusal({
+					toolName: ctx.toolCall.name,
+					toolCallId: ctx.toolCall.id,
+					args: ctx.args,
+					messages: ctx.context.messages,
+					assistantContent: ctx.assistantMessage.content,
+					enforce: planExists(),
+				});
+				return reason ? { block: true, reason } : undefined;
+			},
+		} : {}),
 		// Wave C (2026-09-26, owner correction same day): markers handed to a
 		// live run drain from pi's STEERING queue — the lesson loop is one
 		// continuous teach→quiz→teach run, so delivery must inject at turn
@@ -293,7 +310,10 @@ export function createTeacherAgent(
 	opts: AgentBuildOptions = {},
 ) {
 	const tools = opts.tools ?? (ctx ? createTeacherTools(ctx, opts.toolToggles) : bareQuestionTools());
-	return baseAgentOptions("teacher", opts, Object.values(tools));
+	// The plan exists once the live chat record carries a map (same read as
+	// tools.ts nodeIdProblem). Without ctx (bare test agents) the rule is off.
+	const planExists = ctx ? () => (ctx.chatStore.getChat(ctx.chatId)?.tree?.nodes.length ?? 0) > 0 : undefined;
+	return baseAgentOptions("teacher", opts, Object.values(tools), planExists);
 }
 
 /** The bare teach question set (tests, bare agents): quiz with the shared

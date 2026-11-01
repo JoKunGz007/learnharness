@@ -2235,7 +2235,9 @@ function DockOverlay({
 	// a focused button activates natively) — this listener claims only
 	// the dead case: plain focus with Enter doing nothing.
 	useEffect(() => {
-		if (!pending || expanded) return;
+		// Scrolled-up (revealed) questions keep their answer field live and
+		// Enter submits from there — only the unrevealed check opens on Enter.
+		if (!pending || expanded || !revealPending) return;
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.key !== "Enter" || e.altKey) return;
 			if (e.shiftKey && !e.metaKey && !e.ctrlKey) return;
@@ -2255,7 +2257,7 @@ function DockOverlay({
 		};
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
-	}, [pending, expanded]);
+	}, [pending, expanded, revealPending]);
 
 	useEffect(() => {
 		const el = scrollRef.current;
@@ -2368,7 +2370,7 @@ function DockOverlay({
 					    teach-phase check waits — the same cue that collapses it. It
 					    claims dictated speech until the learner reveals the check
 					    (the dock reclaims then). Rides the check answer on submit. */}
-					{pending && requiresReveal && (
+					{pending && requiresReveal && (expanded || revealPending) && (
 						<ReadingThinkingField
 							value={readingThinking}
 							revision={readingThinkingRevision}

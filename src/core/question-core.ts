@@ -71,6 +71,23 @@ export function parseOptionsIfString<T>(options: string | T[] | undefined): unkn
 	return options;
 }
 
+/** A literal `\n` that is a newline escape, not a TeX command (`\nabla`,
+ *  `\neq`, `\not`, `\nu` …): the TeX names are excluded by whole word. */
+const ESCAPED_NEWLINE = /\\n(?!(?:abla|eq|e|ot|otin|u|eg|i|mid|less|gtr|leq|geq|leqslant|geqslant|rightarrow|leftarrow|subset|supset|subseteq|supseteq|parallel|vdash|exists|earrow|warrow|ewline|ewcommand|oindent|olimits|umber|ormalsize|ormal)(?![A-Za-z]))/g;
+
+/** Display-only repair of an over-escaped question string (models sometimes
+ *  send literal backslash-n / backslash-quote, so a code fence shows as raw
+ *  text). Decodes ONLY when the string has NO real line break AND contains a
+ *  literal `\n` that is not a TeX command; then `\n` -> newline, `\"` -> `"`.
+ *  A string with any real line break is left alone (so `print("a\nb")` in a
+ *  properly formatted block survives). The stored call is never touched. */
+export function repairEscapedQuestionText(text: string): string {
+	if (/[\r\n]/.test(text)) return text;
+	ESCAPED_NEWLINE.lastIndex = 0;
+	if (!ESCAPED_NEWLINE.test(text)) return text;
+	return text.replace(ESCAPED_NEWLINE, "\n").replace(/\\"/g, '"');
+}
+
 // ─── cross-field authoring validation (tool-schema refinements) ──────────
 // Enforced at the tool-call boundary (see the superRefines below): an invalid
 // question NEVER reaches the learner — the SDK returns the validation error

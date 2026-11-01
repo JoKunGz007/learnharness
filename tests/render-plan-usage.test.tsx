@@ -27,6 +27,17 @@ describe("plan usage badge", () => {
 		assert.equal(view(null, null), "");
 		assert.equal(renderToStaticMarkup(<PlanUsageBadge refreshKey={0} />), "");
 	});
+	it("appends the chat share only with chat data", () => {
+		const usage = { fiveHour: w(7), sevenDay: w(28), at: 0 };
+		const turn = { id: "t", messageId: "m", at: new Date(1793025600_000 - 3600_000).toISOString(), model: "claude-code:claude-opus-5-5",
+			steps: [{ inputTokens: 100_000, cacheWriteTokens: 100_000, cacheReadTokens: 1_000_000, outputTokens: 10_000, reasoningTokens: undefined }] }; // $1.6 -> 4.2%
+		const now = 1793025600_000 - 3500_000;
+		const withChat = renderToStaticMarkup(<PlanUsageView usage={usage} now={now} chat={{ turns: [turn] }} />);
+		assert.match(withChat, /chat ~4\.2%/);
+		assert.match(withChat, /title="[^"]*estimated share/);
+		assert.ok(!renderToStaticMarkup(<PlanUsageView usage={usage} now={now} />).includes("chat"));
+		assert.equal(renderToStaticMarkup(<PlanUsageView usage={null} chat={{ turns: [turn] }} />), "");
+	});
 	it("title text", () => {
 		const t = usageTitle({ fiveHour: w(25), sevenDay: w(57), at: 0 }, 3 * 60_000);
 		assert.match(t, /^5-hour: 25%, resets \d\d:\d\d · weekly: 57%, resets \w{3} \d\d:\d\d · as of 3 min ago$/);

@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MessageResponse } from "../components/ai-elements/message.tsx";
-import { QuestionDock } from "../components/question-dock.tsx";
+import { QuestionDock, dockLayout } from "../components/question-dock.tsx";
 import { ProbeDoneCard } from "../components/artifacts/probe-done-card.tsx";
 import { DispatchCard } from "../components/artifacts/dispatch-card.tsx";
 import { JobsContext } from "../components/jobs-context.ts";
@@ -456,9 +456,29 @@ describe("teach-check reveal (W5 phase separation)", () => {
 					onSubmit={() => {}}
 				/>,
 		);
-		assert.ok(html.includes('data-testid="question-dock-bar"'), "the scroll-collapse strip");
+		assert.ok(html.includes('data-testid="question-dock-peek"'), "the scroll-collapse row");
+		assert.ok(html.includes('aria-expanded="false"'), "choices closed until the row is clicked");
 		assert.ok(!html.includes("Check your understanding"), "no invitation copy outside teach phase");
-		assert.match(html, /Answer/, "the strip keeps its Answer affordance");
+		assert.match(html, /Choices/, "the row opens the choices in place");
+		assert.ok(html.includes('data-testid="thinking-field"'), "the thinking field stays usable while scrolled up");
+		assert.ok(html.includes('<div class="hidden">'), "choices stay mounted but hidden");
+	});
+
+	it("scrolled-up open-text question keeps the bar and a live answer field", () => {
+		const html = renderToStaticMarkup(
+			<QuestionDock toolName="ask_user_question" toolCallId="a1" input={{ question: "Say why?" }} expanded={false} onExpand={() => {}} onSubmit={() => {}} />,
+		);
+		assert.ok(html.includes('data-testid="question-dock-bar"'));
+		assert.ok(html.includes('data-testid="answer-field"'), "typing answers directly, no expand");
+	});
+
+	it("dockLayout: bottom unchanged, reveal hides the form, scrolled-up keeps the field", () => {
+		const base = { expanded: false, reveal: false, choice: true, peek: false };
+		assert.deepEqual(dockLayout({ ...base, expanded: true }), { bar: null, formVisible: true, choicesVisible: true });
+		assert.deepEqual(dockLayout({ ...base, reveal: true }), { bar: "reveal", formVisible: false, choicesVisible: false });
+		assert.deepEqual(dockLayout(base), { bar: "peek", formVisible: true, choicesVisible: false });
+		assert.deepEqual(dockLayout({ ...base, peek: true }), { bar: "peek", formVisible: true, choicesVisible: true });
+		assert.deepEqual(dockLayout({ ...base, choice: false }), { bar: "collapsed", formVisible: true, choicesVisible: false });
 	});
 
 	it("after the reveal, the teach check renders the full form (probe default, unchanged)", () => {

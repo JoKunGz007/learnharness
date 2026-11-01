@@ -13,6 +13,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-008 — 2026-10-31 — Web search through Tavily
 - D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
 - D-010 — 2026-11-01 — Hold unanswered questions 55 minutes; fixes to D-009's consequences
+- D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -85,3 +86,10 @@ Decision: Owner chose 55 minutes of retention, with `MCP_TOOL_TIMEOUT` raised to
 Rationale: past the history's 1-hour prompt cache a held process saves almost nothing, so 24 hours (the old build) only adds idle processes; inside the hour, a held process avoids a replay's cache rewrite.
 Consequences: one idle CLI process per waiting chat, for up to 55 minutes; memory not measured. A steer to a disabled `claude-code` now gets the 403 rather than the 503. Cache and timeout numbers not measured live.
 Evidence: `tests/claude-code-gate.test.ts`, `tests/claude-code-stream.test.ts`.
+
+## D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
+Status: accepted (owner's choices, 2026-11-01).
+Decision: Guard: teacher only, once the plan exists, a `check` quiz or `ask_user_question` with no lesson text since the learner's last input is refused once; a second try passes; `predict` is exempt. Usage: the badge adds this chat's estimated share, counting only requests in the current 5-hour window, background jobs included. Scrolled up: the answer field stays usable, a multiple-choice question becomes a collapsible row above it, and Return with nothing selected doesn't submit.
+Rationale: Refusing once keeps a turn from looping or hanging, at the cost of a rare bare question getting through. Planning questions need no lesson. A window-only share is comparable with the 5h figure.
+Consequences: All `claude-code` cache writes are priced at 2× (the 1-hour rate) because the stream reports only a total; only `claude-code:` models count. `explain` questions aren't guarded.
+Evidence: `tests/lesson-text-gate.test.ts`, `tests/chat-share.test.ts`, `tests/render-cards.test.tsx`.

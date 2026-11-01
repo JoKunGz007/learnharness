@@ -53,8 +53,9 @@ const pixels = (value: string) => Number.parseFloat(value) || 0;
 export function syncDockHeight(elements: DockHeightElements, expanded: boolean) {
 	const { column, block, viewport, body, shell, content } = elements;
 	// QuestionDock keeps a laid-out form in an invisible h-0 wrapper;
-	// PracticeDock removes its form. Neither hidden form is a height input.
-	const question = expanded ? content.querySelector<HTMLElement>("[data-dock-scroll-area]") : null;
+	// PracticeDock removes its form. Neither hidden form is a height input,
+	// but choices opened from the scrolled-up row are.
+	const question = content.querySelector<HTMLElement>(expanded ? "[data-dock-scroll-area]" : "[data-dock-choices-open] [data-dock-scroll-area]");
 	const height = (el: HTMLElement) => el.getBoundingClientRect().height;
 	const shellStyle = getComputedStyle(shell);
 	const questionStyle = question ? getComputedStyle(question) : null;

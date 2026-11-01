@@ -223,7 +223,7 @@ export function StatsBar({
 			{/* The model + thinking control — one controller for the conversation
 			    agents (prober/teacher); the record's `turns` above still folds
 			    the ACTUAL models billed, regardless of what the picker says. */}
-			<PlanUsageBadge refreshKey={turns.length} />
+			<PlanUsageBadge refreshKey={turns.length} turns={chatId ? turns : undefined} chatId={chatId} />
 			<ModelControl chatId={chatId} onModelChange={modelChanged} />
 		</div>
 	);

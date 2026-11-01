@@ -8,7 +8,7 @@ import { PathText } from "@/components/file-path-chip";
 import { cn } from "@/lib/utils";
 import { ToolContentResponse } from "@/components/ai-elements/message";
 import type { QuestionAnswerData } from "@/src/core";
-import { answerForPresentation, parseAskInput, parseQuizInput } from "@/src/core";
+import { answerForPresentation, repairEscapedQuestionText, parseAskInput, parseQuizInput } from "@/src/core";
 
 /**
  * Static rendering of an answered question (tool part in `output-available`).
@@ -88,7 +88,7 @@ export function AnsweredCard({ answer: savedAnswer, input }: { answer: QuestionA
 					))}
 			</div>
 			<div className="mb-3 font-medium">
-				<ToolContentResponse>{answer.questionText}</ToolContentResponse>
+				<ToolContentResponse>{repairEscapedQuestionText(answer.questionText)}</ToolContentResponse>
 			</div>
 			{parsedDetails && (
 				// The details line, same paint as the pending dock (owner,
