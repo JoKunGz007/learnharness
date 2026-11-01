@@ -68,7 +68,10 @@ export function subagentEngine(role: ModelRole, override?: PiEngine): PiEngine {
  *  every slice after the first is a zero-usage message, not a model request,
  *  so it must not spend `maxTurns` (a research job once capped out on 4 real
  *  calls, before writing its brief). Other providers always count: one that
- *  reports no usage must still hit the cap. */
+ *  reports no usage must still hit the cap. MAX_SLICES_PER_CALL is the same
+ *  rule for claude-code itself: no usage must not mean no cap. */
+export const MAX_SLICES_PER_CALL = 4;
+
 export function isModelCall(message: Pick<AssistantMessage, "provider" | "usage">): boolean {
 	const { input, output, cacheRead, cacheWrite } = message.usage;
 	return message.provider !== CLAUDE_CODE_PROVIDER || input + output + cacheRead + cacheWrite > 0;
@@ -77,6 +80,7 @@ export function isModelCall(message: Pick<AssistantMessage, "provider" | "usage"
 export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRunOptions): Promise<SubagentRunResult> {
 	const engine = subagentEngine(opts.role, opts.engine);
 	let turns = 0;
+	let messages = 0;
 	// Debug recorder (owner, 2026-10-04): raw provider events per job run.
 	const providerEvents = opts.chatId ? providerEventObserver(opts.chatId, `job:${opts.role}`) : undefined;
 	const sessionId = randomUUID();
@@ -97,8 +101,9 @@ export async function runSubagent(tools: AgentTool<any, any>[], opts: SubagentRu
 		// 0.87.1: shouldStopAfterTurn → finishTurn (same call point; "end"
 		// exits before the steering poll, exactly the old boolean-true).
 		finishTurn: (turn) => {
+			messages++;
 			if (isModelCall(turn.message)) turns++;
-			return turns >= opts.maxTurns || opts.shouldStop?.(turn.message, turn.toolResults) === true
+			return turns >= opts.maxTurns || messages >= opts.maxTurns * MAX_SLICES_PER_CALL || opts.shouldStop?.(turn.message, turn.toolResults) === true
 				? { action: "end" }
 				: undefined;
 		},

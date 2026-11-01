@@ -46,16 +46,11 @@ export function PlanUsageView({ usage, now, chat }: { usage: PlanUsage | null; n
 }
 
 /** Claude plan usage: refetched when `refreshKey` changes (a turn finished) and every 60 s. */
-export function PlanUsageBadge({ refreshKey, turns, chatId }: { refreshKey?: number; turns?: readonly TurnUsage[]; chatId?: string }) {
+export function PlanUsageBadge({ refreshKey, turns, jobs }: { refreshKey?: number; turns?: readonly TurnUsage[]; jobs?: readonly JobRecord[] }) {
 	const [usage, setUsage] = useState<PlanUsage | null>(null);
-	const [jobs, setJobs] = useState<JobRecord[]>([]);
 	useEffect(() => {
 		let live = true;
 		const load = () => {
-			if (chatId) fetch(`/api/jobs?chatId=${encodeURIComponent(chatId)}`, { cache: "no-store" })
-				.then((res) => (res.ok ? res.json() : null))
-				.then((body) => { if (live && Array.isArray(body?.jobs)) setJobs(body.jobs); })
-				.catch(() => {});
 			fetch("/api/claude-code/usage", { cache: "no-store" })
 				.then((res) => (res.ok ? res.json() : null))
 				.then((body) => { if (live) setUsage(body?.["claude-code"] ?? null); })
@@ -66,6 +61,6 @@ export function PlanUsageBadge({ refreshKey, turns, chatId }: { refreshKey?: num
 		// The usage line arrives after message_stop (up to the 3 s fallback): read once more after it.
 		const late = refreshKey === undefined ? undefined : setTimeout(load, 4000);
 		return () => { live = false; clearInterval(timer); clearTimeout(late); };
-	}, [refreshKey, chatId]);
+	}, [refreshKey]);
 	return <PlanUsageView usage={usage} chat={turns ? { turns, jobs } : undefined} />;
 }

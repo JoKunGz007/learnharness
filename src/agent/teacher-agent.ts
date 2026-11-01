@@ -232,7 +232,7 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 					args: ctx.args,
 					messages: ctx.context.messages,
 					assistantContent: ctx.assistantMessage.content,
-					enforce: planExists(),
+					enforce: planExists,
 				});
 				return reason ? { block: true, reason } : undefined;
 			},

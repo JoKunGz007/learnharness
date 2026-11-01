@@ -464,6 +464,13 @@ describe("teach-check reveal (W5 phase separation)", () => {
 		assert.ok(html.includes('<div class="hidden">'), "choices stay mounted but hidden");
 	});
 
+	it("scrolled-up row repairs an over-escaped question", () => {
+		const html = renderToStaticMarkup(
+			<QuestionDock toolName="ask_user_question" toolCallId="a2" input={{ question: "What prints?\\n```python\\nprint(1)\\n```", options: [{ label: "1" }, { label: "2" }] }} expanded={false} onExpand={() => {}} onSubmit={() => {}} />,
+		);
+		assert.ok(html.includes("python print(1)"), html.slice(0, 300));
+	});
+
 	it("scrolled-up open-text question keeps the bar and a live answer field", () => {
 		const html = renderToStaticMarkup(
 			<QuestionDock toolName="ask_user_question" toolCallId="a1" input={{ question: "Say why?" }} expanded={false} onExpand={() => {}} onSubmit={() => {}} />,

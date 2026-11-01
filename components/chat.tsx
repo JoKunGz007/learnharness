@@ -1699,6 +1699,7 @@ export function Chat({
 					compactionRunning={compacting}
 					onSubmitThinking={submitThinking}
 					chatId={chatId}
+					jobs={jobs}
 					onModelChange={setSelectedModel}
 					plan={hasPlan ? <PlanMarginalia messages={messages} /> : undefined}
 					onOpenPlan={() => setPlanOpen(true)}
@@ -1944,6 +1945,7 @@ function DockOverlay({
 	composer,
 	onSubmitAnswer,
 	chatId,
+	jobs,
 	onModelChange,
 	onReserve,
 	plan,
@@ -1983,6 +1985,7 @@ function DockOverlay({
 	onSubmitAnswer: (output: QuestionAnswerData) => void;
 	/** The model control's pass-through (the stats bar hosts it). */
 	chatId: string;
+	jobs: readonly JobRecord[];
 	onModelChange: (model: string | undefined) => void;
 	/** Reports the dock's settled height (block + gradient) — ChatView's
 	 *  dockReserve state feeds the transcript's spacer from it. */
@@ -2442,6 +2445,7 @@ function DockOverlay({
 						pricing={pricing}
 						dictationSlot={dictationSlot}
 						chatId={chatId}
+						jobs={jobs}
 						onModelChange={onModelChange}
 					/>
 					{/* The scroll-down disc (moved here from the Conversation,

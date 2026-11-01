@@ -45,13 +45,14 @@ export interface LessonTextGateInput {
 	messages: readonly AgentMessage[];
 	/** The assistant message holding this call. */
 	assistantContent: ReadonlyArray<{ type: string; id?: string }>;
-	/** Teacher only, and only once the session's plan exists. */
-	enforce: boolean;
+	/** Teacher only, and only once the session's plan exists. Lazy: it reads
+	 *  the chat record, which only question calls should pay for. */
+	enforce: () => boolean;
 }
 
 /** The refusal reason, or undefined to let the call through. Pure. */
 export function lessonTextRefusal(input: LessonTextGateInput): string | undefined {
-	if (!input.enforce || !needsLessonText(input.toolName, input.args)) return undefined;
+	if (!needsLessonText(input.toolName, input.args) || !input.enforce()) return undefined;
 	const { messages, toolCallId } = input;
 	// The beat: everything after the latest learner-origin input.
 	let start = 0;

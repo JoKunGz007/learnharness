@@ -658,7 +658,8 @@ function finalizeJob(jobId: string): void {
 		if (!job) return;
 		if (!job.delivery) job = normalizeLegacyResult(job);
 		if (job.delivery?.status !== "pending") return;
-		stores.jobStore.updateJob(jobId, { delivery: { ...job.delivery, status: "delivered" } });
+		// Bookkeeping, not job activity: updatedAt stays the worker's last write (chat-share dates the job by it).
+		stores.jobStore.updateJob(jobId, { delivery: { ...job.delivery, status: "delivered" }, updatedAt: job.updatedAt });
 	} catch (error) {
 		// The conversation is already durable. A bookkeeping failure must
 		// never replay that marker or turn a successful worker into a failure.

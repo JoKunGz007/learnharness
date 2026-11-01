@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CLAUDE_CODE_PROVIDER, sessionCacheHitRate, subscriptionLabels, subscriptionLabel, type cliContextWindowOf, type SessionPricing, type TurnUsage } from "@/src/core";
+import { CLAUDE_CODE_PROVIDER, sessionCacheHitRate, subscriptionLabels, subscriptionLabel, type cliContextWindowOf, type JobRecord, type SessionPricing, type TurnUsage } from "@/src/core";
 import { formatTokens, formatUsd, planCostLabel, prettyModel } from "@/components/usage-format";
 import { PlanUsageBadge } from "@/components/plan-usage-badge";
 import { ModelControl, catalogLimits, useModelCatalog } from "@/components/model-picker";
@@ -45,6 +45,7 @@ export function StatsBar({
 	pricing,
 	dictationSlot,
 	chatId,
+	jobs,
 	leadingSlot,
 	onModelChange,
 }: {
@@ -57,6 +58,8 @@ export function StatsBar({
 	 *  record; absent on the draft surfaces, where it binds the strong
 	 *  slot (the new-session default). */
 	chatId?: string;
+	/** The session's jobs, for the badge's chat share. */
+	jobs?: readonly JobRecord[];
 	/** The same effective identity the visible model control owns. */
 	onModelChange?: (model: string | undefined) => void;
 	/** The dictation strip (STT wave, 2026-09-17): the row's middle is dead
@@ -223,7 +226,7 @@ export function StatsBar({
 			{/* The model + thinking control — one controller for the conversation
 			    agents (prober/teacher); the record's `turns` above still folds
 			    the ACTUAL models billed, regardless of what the picker says. */}
-			<PlanUsageBadge refreshKey={turns.length} turns={chatId ? turns : undefined} chatId={chatId} />
+			<PlanUsageBadge refreshKey={turns.length} turns={chatId ? turns : undefined} jobs={jobs} />
 			<ModelControl chatId={chatId} onModelChange={modelChanged} />
 		</div>
 	);

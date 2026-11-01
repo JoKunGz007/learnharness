@@ -82,8 +82,8 @@ export interface QuestionDockProps {
 	/** Escape in a question field stops dictation (STT wave) — threaded
 	 *  from the page that owns the dictation hook. */
 	onEscape?: () => void;
-	/** The keyboard machine (wave B) is armed only while the dock is
-	 *  expanded — the collapsed bar keeps its native Enter-to-expand. */
+	/** The keyboard machine (wave B) is armed only while the choices are
+	 *  on screen (expanded, or opened from the scrolled-up row). */
 	active?: boolean;
 	/** Session phase at the question — scales the thinking field: probing
 	 *  stays quick (one row), teaching invites dumping (three rows). */
@@ -179,7 +179,7 @@ export function QuestionDock({
 					toolCallId={toolCallId}
 					input={parsed}
 					phase={phase}
-					active={expanded}
+					active={layout.choicesVisible}
 					choicesVisible={layout.choicesVisible}
 					onSubmit={onSubmit}
 					initialDraft={initialDraft}
@@ -212,7 +212,7 @@ export function dockLayout(s: { expanded: boolean; reveal: boolean; choice: bool
 
 /** A plain-text teaser of a question for the collapsed bar: unwrap math, flatten common LaTeX. */
 function teaserText(q: string): string {
-	return repairMathForDisplay(q)
+	return repairMathForDisplay(repairEscapedQuestionText(q))
 		.replace(/\\\(([\s\S]*?)\\\)/g, "$1") // \(...\) inline math
 		.replace(/\\\[([\s\S]*?)\\\]/g, "$1") // \[...\] display math
 		.replace(/\$\$?([^$]*)\$\$?/g, "$1") // standard $...$/$$...$$ math

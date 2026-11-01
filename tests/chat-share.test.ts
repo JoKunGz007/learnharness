@@ -45,6 +45,7 @@ describe("chat share of the 5h limit", () => {
 		assert.equal(chatFiveHourPct([], [], since), 0);
 	});
 	it("formats", () => {
+		assert.equal(formatChatShare(0), null);
 		assert.equal(formatChatShare(0.049), "<0.1%");
 		assert.equal(formatChatShare(0.05), "~0.1%");
 		assert.equal(formatChatShare(3.04), "~3%");

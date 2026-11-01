@@ -837,8 +837,19 @@ describe("repairEscapedQuestionText", () => {
 			assert.equal(repairEscapedQuestionText(s), s);
 		}
 	});
-	it("decodes the escape but keeps LaTeX in a mixed one-liner", () => {
-		assert.equal(repairEscapedQuestionText("Find $\\nabla f$.\\nThen simplify."), "Find $\\nabla f$.\nThen simplify.");
+	it("decodes the escape but keeps LaTeX in a fenced one-liner", () => {
+		assert.equal(repairEscapedQuestionText("Find $\\nabla f$.\\n```\\nx\\n```"), "Find $\\nabla f$.\n```\nx\n```");
+	});
+	it("leaves a one-line question about an escape sequence alone", () => {
+		for (const s of ['What does `print("a\\nb")` output?', "What does `\\n` do in C?", "Open C:\\new\\notes.txt"]) {
+			assert.equal(repairEscapedQuestionText(s), s);
+		}
+	});
+	it("keeps the other n-commands and a row break before n, even when fenced", () => {
+		const fence = "\\n```\\nx\\n```";
+		for (const math of ["$a \\ncong b$", "$\\natural$", "$A \\nRightarrow B$", "$a \\nsim b$", "$x \\nonumber$", "$\\begin{pmatrix}1 \\\\n\\end{pmatrix}$"]) {
+			assert.ok(repairEscapedQuestionText(math + fence).startsWith(math + "\n"), math);
+		}
 	});
 });
 

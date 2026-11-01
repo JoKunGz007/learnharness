@@ -27,7 +27,7 @@ const refusal = (id: string, name = "quiz") => ({
 /** Run the gate on the call `id` inside `current`, with `earlier` already in context. */
 function gate(earlier: AgentMessage[], current: unknown[], id: string, name: string, args: Record<string, unknown> = {}, enforce = true) {
 	const cur = asst(current);
-	return lessonTextRefusal({ toolName: name, toolCallId: id, args, messages: [...earlier, cur], assistantContent: current as never, enforce });
+	return lessonTextRefusal({ toolName: name, toolCallId: id, args, messages: [...earlier, cur], assistantContent: current as never, enforce: () => enforce });
 }
 
 test("refuses a check quiz when the turn holds only thinking", () => {
@@ -78,7 +78,7 @@ test("other tools are never gated", () => {
 test("the second attempt in the same beat passes", () => {
 	const first = asst([call("q1", "quiz")]);
 	const r = lessonTextRefusal({
-		toolName: "quiz", toolCallId: "q2", args: {}, enforce: true,
+		toolName: "quiz", toolCallId: "q2", args: {}, enforce: () => true,
 		messages: [user("hi"), first, refusal("q1"), asst([thinking("again"), call("q2", "quiz")])],
 		assistantContent: [thinking("again"), call("q2", "quiz")],
 	});
@@ -87,11 +87,21 @@ test("the second attempt in the same beat passes", () => {
 
 test("a refusal of an ask also lets a following quiz through", () => {
 	const r = lessonTextRefusal({
-		toolName: "quiz", toolCallId: "q2", args: {}, enforce: true,
+		toolName: "quiz", toolCallId: "q2", args: {}, enforce: () => true,
 		messages: [user("hi"), asst([call("a1", "ask_user_question")]), refusal("a1", "ask_user_question"), asst([call("q2", "quiz")])],
 		assistantContent: [call("q2", "quiz")],
 	});
 	assert.equal(r, undefined);
+});
+
+test("the plan is only looked up for a call that needs lesson text", () => {
+	let reads = 0;
+	const enforce = () => { reads++; return true; };
+	lessonTextRefusal({ toolName: "web_search", toolCallId: "w1", args: {}, enforce, messages: [user("hi")], assistantContent: [] });
+	lessonTextRefusal({ toolName: "quiz", toolCallId: "q1", args: { type: "predict" }, enforce, messages: [user("hi")], assistantContent: [] });
+	assert.equal(reads, 0);
+	lessonTextRefusal({ toolName: "quiz", toolCallId: "q1", args: {}, enforce, messages: [user("hi")], assistantContent: [] });
+	assert.equal(reads, 1);
 });
 
 test("enforcement is off before the plan exists", () => {

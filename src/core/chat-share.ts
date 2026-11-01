@@ -1,6 +1,8 @@
 /** A chat's estimated share of the Claude 5-hour plan limit. Ported from claude-cache-timer's
  * `Spend` (CacheTimer.cs): the usage endpoint reports only the total, so each request is weighted
- * at API prices and converted with a fitted scale. An estimate; the plan's real weights are not published. */
+ * at API prices and converted with a fitted scale. An estimate; the plan's real weights are not published.
+ * modelPrice is a deliberate exception to prices.ts's "no copied pricing table": DOLLARS_PER_PCT was fitted
+ * against exactly these rates, so swapping in the catalog's would change the scale they calibrate. */
 import type { CallUsage, JobRecord, TurnUsage } from "./contracts.ts";
 import { CLAUDE_CODE_PROVIDER } from "./contracts/claude-code.ts";
 
@@ -60,7 +62,8 @@ export function chatFiveHourPct(turns: readonly Pick<TurnUsage, "at" | "model" |
 	return usd / DOLLARS_PER_PCT;
 }
 
-/** `<0.1%` under 0.05, else at most one decimal (as Spend.ResendText). */
-export function formatChatShare(pct: number): string {
+/** Null with no usage (nothing to claim), `<0.1%` under 0.05, else at most one decimal (as Spend.ResendText). */
+export function formatChatShare(pct: number): string | null {
+	if (pct <= 0) return null;
 	return pct < 0.05 ? "<0.1%" : `~${Number(pct.toFixed(1))}%`;
 }

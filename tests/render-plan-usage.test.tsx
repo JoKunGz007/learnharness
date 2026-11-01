@@ -7,6 +7,10 @@ const w = (pct: number) => ({ pct, resetsAt: 1793025600_000 });
 const view = (fiveHour: ReturnType<typeof w> | null, sevenDay: ReturnType<typeof w> | null) => renderToStaticMarkup(<PlanUsageView usage={{ fiveHour, sevenDay, at: 0 }} now={30_000} />);
 
 describe("plan usage badge", () => {
+	it("hides the chat share when the chat has no Claude Code usage", () => {
+		const html = renderToStaticMarkup(<PlanUsageView usage={{ fiveHour: w(25), sevenDay: null, at: 0 }} now={30_000} chat={{ turns: [] }} />);
+		assert.doesNotMatch(html, /plan-usage-chat/);
+	});
 	it("colours at 49/50/79/80", () => {
 		assert.match(view(w(49), null), /#7FB77E[^>]*>49%/);
 		assert.match(view(w(50), null), /#E0A04A[^>]*>50%/);
