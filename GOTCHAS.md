@@ -9,8 +9,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Verify: the run prints `ℹ tests N`.
 
 ## Windows-only test failures
-- Symptom: `chatgpt-auth.test.ts` / `subscription-auth.test.ts` owner-only file-mode assertions and a control-bridge test fail. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
-- Cause: POSIX file modes, signals (and timing) don't hold on Windows. Not confirmed against plain upstream.
+- Symptom: the full suite gives 14 failures (2026-11-02). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
+- Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. Not confirmed against plain upstream.
 - Avoid: don't chase them unless that code changes.
 - Verify: same failures on `main` before and after a change.
 
@@ -77,5 +77,5 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## `tests/jobs.test.ts` never exits
 - Symptom: a test run containing it hangs past any timeout with no failure in the log; the file reports `fail 1` only when killed, while all 56 subtests pass. A leftover run can keep node processes alive into the next session.
 - Cause: not traced; something keeps the process open after the last test. Same with the 2026-11-01 cap fix stashed, on the 0.4.1 port. Windows-only or not is unknown.
-- Avoid: run files one at a time under `timeout 60` and read the subtest counts; don't run it in a group.
+- Avoid: pass `--test-force-exit` (the full suite then finishes in about 3.5 minutes), or run the file alone under `timeout 60` and read the subtest counts.
 - Verify: `NODE_ENV=test timeout 60 npx tsx --test tests/jobs.test.ts` shows `pass 56`, exit 124.

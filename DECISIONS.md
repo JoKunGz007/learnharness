@@ -14,6 +14,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-009 — 2026-10-31 — Accept D-007: upstream's `claude-code` provider plus fork patches
 - D-010 — 2026-11-01 — Hold unanswered questions 55 minutes; fixes to D-009's consequences
 - D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
+- D-012 — 2026-11-02 — Fixes from the review of the guard, chat share and research cap
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -93,3 +94,10 @@ Decision: Guard: teacher only, once the plan exists, a `check` quiz or `ask_user
 Rationale: Refusing once keeps a turn from looping or hanging, at the cost of a rare bare question getting through. Planning questions need no lesson. A window-only share is comparable with the 5h figure.
 Consequences: All `claude-code` cache writes are priced at 2× (the 1-hour rate) because the stream reports only a total; only `claude-code:` models count. `explain` questions aren't guarded.
 Evidence: `tests/lesson-text-gate.test.ts`, `tests/chat-share.test.ts`, `tests/render-cards.test.tsx`.
+
+## D-012 — 2026-11-02 — Fixes from the review of the guard, chat share and research cap
+Status: accepted (owner asked for all findings fixed, 2026-11-02). Narrows D-011's question-text repair. Applies to the turn-cap fix `8423ea6`.
+Decision: Over-escaped question text is repaired only when the string has a code fence. `claude-code` subagent runs stop at `maxTurns × MAX_SLICES_PER_CALL` (4) messages as well as at `maxTurns` real calls. The chat share's price table in `src/core/chat-share.ts` stays, as a recorded exception to the "no copied pricing table" note in `src/core/prices.ts`. The badge takes a chat's jobs from the chat view instead of polling.
+Rationale: A literal `\n` on one line can be the question's own (`print("a\nb")`); a fence can't sit on one line, so it marks the fault. No usage must not mean no cap. `DOLLARS_PER_PCT` was fitted against those rates, so catalog prices would change the scale.
+Consequences: Over-escaped text with no fence shows a raw `\n`. A job averaging over 4 parallel calls per request can stop early; the failed job averaged 3. The table can go stale when prices change. Job delivery no longer moves `updatedAt`, so a job counts at its last worker write.
+Evidence: `1a997ae`; `tests/subagent-turn-cap.test.ts`, `tests/question-core.test.ts`, `tests/job-delivery-recovery.test.ts`, `tests/plan-usage-jobs.test.tsx`, `tests/question-dock-keyboard.test.tsx`.
