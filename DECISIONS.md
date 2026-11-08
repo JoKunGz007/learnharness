@@ -15,6 +15,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-010 — 2026-11-01 — Hold unanswered questions 55 minutes; fixes to D-009's consequences
 - D-011 — 2026-11-01 — Lesson-text guard, chat usage share, answering while scrolled up
 - D-012 — 2026-11-02 — Fixes from the review of the guard, chat share and research cap
+- D-013 — 2026-11-08 — Upstream v0.5.0: take its #157, keep the lesson-text gate beside its narration guard
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -101,3 +102,10 @@ Decision: Over-escaped question text is repaired only when the string has a code
 Rationale: A literal `\n` on one line can be the question's own (`print("a\nb")`); a fence can't sit on one line, so it marks the fault. No usage must not mean no cap. `DOLLARS_PER_PCT` was fitted against those rates, so catalog prices would change the scale.
 Consequences: Over-escaped text with no fence shows a raw `\n`. A job averaging over 4 parallel calls per request can stop early; the failed job averaged 3. The table can go stale when prices change. Job delivery no longer moves `updatedAt`, so a job counts at its last worker write.
 Evidence: `1a997ae`; `tests/subagent-turn-cap.test.ts`, `tests/question-core.test.ts`, `tests/job-delivery-recovery.test.ts`, `tests/plan-usage-jobs.test.tsx`, `tests/question-dock-keyboard.test.tsx`.
+
+## D-013 — 2026-11-08 — Upstream v0.5.0: take its #157, keep the lesson-text gate beside its narration guard
+Status: accepted (owner approved the merge plan, 2026-11-08). Extends D-009 and D-011.
+Decision: Upstream's finished #157 folder restrictions replace our early merge of the PR (saved shape becomes `{restricted, folders}`). Our lesson-text gate (D-011) stays; `teacher-agent.ts` runs one `beforeToolCall` that calls the gate first, then upstream's narration guard (#434), and keeps the guard's `afterToolCall`. `stream.ts` keeps `--setting-sources ""` and the env scrub, and adds upstream's `CLAUDE_CODE_DISABLE_CLAUDE_MDS`. Upstream tests that expect `--setting-sources user` or unscrubbed `ANTHROPIC_*` variables are changed to the fork's values.
+Rationale: Our #157 side was the PR head, an ancestor of upstream's version. The narration guard only fires on a thinking signature containing "narration", which the `claude-code` stream never sets, so it cannot replace the gate there; a plain merge let our hook overwrite upstream's. The memory switch costs nothing: measured, `--setting-sources ""` already kept `CLAUDE.md` out, and a new process read the whole prefix from cache.
+Consequences: An old `{folders}` setting would load as unrestricted (neither profile had one). #163/#139/#127 stay fork-only until upstream merges them.
+Evidence: `7c35625`, `33a942d`; `tests/lesson-text-gate.test.ts` (chain test fails without the guard call); full suite 2026-11-08 (`PLAN.md` § Current checkpoint).
