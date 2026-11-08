@@ -10,7 +10,6 @@ import { backgroundCaptureStream, createBackgroundCapture, type BackgroundCaptur
 import type { PdfResult, PdfToolInput } from "../../core/contracts.ts";
 import { getHeadless, type HeadlessApi } from "./headless.ts";
 import { pdfExtract, pdfInfo, pdfProbe, pdfSearch, type PdfSearchHit } from "./pdf-ops.ts";
-import { guardSourcePath } from "../tools/file-access.ts";
 
 /**
  * The pdf-reader sub-agent (sources v0, 2026-09): reads a learner-provided
@@ -168,17 +167,13 @@ export async function runPdfReaderAgent(
 	input: PdfReaderInput,
 	opts: PdfReaderOptions = {},
 ): Promise<PdfResult> {
-	const headless = opts.headless ?? getHeadless();
 	const maxIterations = opts.maxIterations ?? MAX_ITERATIONS;
-	// The learner-filesystem gate (file-access wave): the same policy and
-	// home anchor as read/ls/find/grep — a refused or missing path fails
-	// upfront like any unreadable source.
-	let pdfPath = resolveSourcePath(input.path);
+	let pdfPath = input.path;
 	let openError: string | null;
+	// Source denial is an ordinary upfront PDF failure, before parsing,
+	// rendering or any model request (including direct reader invocations).
 	try {
-		pdfPath = await guardSourcePath(pdfPath);
-		// Deterministic upfront failure: unreadable / unparseable
-		// for renders — the brief never starts on a broken source.
+		pdfPath = resolveSourcePath(input.path);
 		openError = await probeReadable(pdfPath);
 	} catch (err) {
 		openError = err instanceof Error ? err.message : String(err);
@@ -186,6 +181,7 @@ export async function runPdfReaderAgent(
 	if (openError) {
 		return { path: pdfPath, question: input.question, brief: `PDF failed: ${openError}`, pagesRead: [], pagesConsulted: [] };
 	}
+	const headless = opts.headless ?? getHeadless();
 	// No Chrome gate (Wave E, 2026-10-10): pdf_render is native now
 	// (pdfjs paints into @napi-rs/canvas in-process) — the whole pdf-reader
 	// runs browser-free; text tools always worked without one.

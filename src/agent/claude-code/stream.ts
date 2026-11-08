@@ -109,10 +109,12 @@ export function toClaudeArgs(input: ClaudeArgsInput): string[] {
 		"--strict-mcp-config",
 		"--mcp-config",
 		input.mcpConfigFile,
+		// Override the CLI's instruction channels (Fork: no user settings at all, see below).
+		// Settings env can replace inherited env, so pin the memory switch here too.
 		"--setting-sources",
 		"", // Fork: no user settings, plugins or CLAUDE.md (upstream: "user")
 		"--settings",
-		JSON.stringify({ disableAllHooks: true }),
+		JSON.stringify({ disableAllHooks: true, outputStyle: "default", env: { CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } }),
 		"--disable-slash-commands",
 		"--no-session-persistence",
 		...(input.sessionId ? ["--session-id", claudeSessionId(input.sessionId)] : []), // Fork
@@ -671,7 +673,8 @@ function toClaudeEnv(thinkingOff = false): NodeJS.ProcessEnv {
 	// Preserve native CLI auth/routing, including launch-environment credentials.
 	// Claude Code chooses the account and billing method, not LearnHarness.
 	// Fork: auth reroutes are scrubbed (claudeChildEnv) so usage always bills the subscription; plus compaction/MCP-output settings.
-	return { ...claudeChildEnv(), ...CLAUDE_TURN_ENV, MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ...(thinkingOff ? { MAX_THINKING_TOKENS: "0" } : {}) }; // Fork: thinking off
+	// CLAUDE_CODE_DISABLE_CLAUDE_MDS (upstream): the tutor's prompt never inherits CLAUDE.md or memory files.
+	return { ...claudeChildEnv(), ...CLAUDE_TURN_ENV, MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(thinkingOff ? { MAX_THINKING_TOKENS: "0" } : {}) }; // Fork: thinking off
 }
 
 async function startProcess(
