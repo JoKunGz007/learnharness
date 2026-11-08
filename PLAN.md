@@ -4,12 +4,12 @@ _The current state only, not a log. Over ~200 lines: move finished entries to `d
 
 ## Current checkpoint (2026-11-08)
 
-- **Upstream v0.5.0 merged (2026-11-08).** `7c35625` (merge) + `33a942d` (test), fast-forwarded into `main`; not pushed, not installed. Resolution: upstream's finished #157 folder restrictions replace ours; `stream.ts` keeps our env scrub and `--setting-sources ""` and adds upstream's `CLAUDE_CODE_DISABLE_CLAUDE_MDS`; `teacher-agent.ts` chains one `beforeToolCall` (our lesson-text gate, then upstream's narration guard, which is inert on `claude-code` since the CLI sends no narration signature). #163/#139/#127 are still open upstream, so ours stay. Evidence:
+- **Upstream v0.5.0 merged (2026-11-08).** `7c35625` (merge) + `33a942d` (test), fast-forwarded into `main`; pushed; installed by the owner from Explorer (2026-11-08). Resolution: upstream's finished #157 folder restrictions replace ours; `stream.ts` keeps our env scrub and `--setting-sources ""` and adds upstream's `CLAUDE_CODE_DISABLE_CLAUDE_MDS`; `teacher-agent.ts` chains one `beforeToolCall` (our lesson-text gate, then upstream's narration guard, which is inert on `claude-code` since the CLI sends no narration signature). #163/#139/#127 are still open upstream, so ours stay. Evidence:
   - Full suite 3,732 tests, 15 fail, all also failing on plain upstream (`GOTCHAS.md`). `tsc` clean. The new chain test fails if the guard call is removed.
   - Installer `dist/LearnHarness-0.5.0-x64-setup.exe` built; `smoke-provider-runtime` and `smoke-server --electron` passed.
   - Dev server, `claude-code` Haiku 4.5: two probe turns produced text, no error banner. Claude Code was switched on in the dev profile for this (first time since the 0.4.1 port).
   - Launch-config change costs no cache: with `--setting-sources ""` the CLI never loaded `CLAUDE.md` (same prompt tokens with and without the new switch), and a new process with the new settings read the whole prefix from cache (Haiku, 4 calls).
-  - **Not verified:** a Teach-phase turn (the lesson-text gate live on 0.5.0), the installed app, the new file-access / attachment / learner-image features by hand.
+  - **Not verified:** a Teach-phase turn (the lesson-text gate live on 0.5.0), the installed app running a turn, the new file-access / attachment / learner-image features by hand.
 
 The 0.4.1 port bullets below are history. `main` before v0.5.0 = the upstream 0.4.1 port (`134d384`, D-009: upstream's `claude-code` provider replaces our #151 copy) + our earlier PR merges, the FSRS review page (D-005) and fork fixes. Head `255d821`, the merge of `port/upstream-0.4.1` at `1a997ae`; pushed to `origin`. **Dated bullets below the next one predate the port and are historical.**
 
