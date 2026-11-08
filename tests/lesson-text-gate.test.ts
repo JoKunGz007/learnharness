@@ -155,3 +155,31 @@ test("agents: a teacher with ctx refuses via the real hook, then lets the retry 
 	const second = await hook(mk([...msgs, refusal("q1"), asst([quiz2])], quiz2, [quiz2]));
 	assert.equal(second, undefined);
 });
+
+// Fork (v0.5.0 merge): on a Claude model the teacher also carries upstream's
+// narration guard. Both must run through the one beforeToolCall: our gate first.
+test("agents: on a Claude model the lesson gate and the narration guard are chained", async () => {
+	const { NARRATION_BLOCK_REASON } = await import("../src/agent/narration-guard.ts");
+	const claude = { ...engine, model: { api: "faux", provider: "anthropic", id: "claude-haiku-4-5", contextWindow: 8192 } as never };
+	const narration = { type: "thinking", thinking: "", thinkingSignature: Buffer.from("narration-block").toString("base64") };
+	const mk = (messages: AgentMessage[], c: ReturnType<typeof call>, content: unknown[]) =>
+		({ assistantMessage: { content }, toolCall: c, args: c.arguments, context: { messages } }) as never;
+	const ctx = { chatId: "c1", chatStore: { getChat: () => ({ tree: { nodes: [{ id: "n1" }] } }) } } as never;
+
+	const hook = createTeacherAgent(ctx, { engine: claude }).beforeToolCall!;
+	assert.ok(hook);
+	// No lesson text at all: the lesson gate refuses first.
+	const q1 = call("q1", "quiz", { type: "check" });
+	const first = await hook(mk([user("hi"), asst([narration, q1])], q1, [narration, q1]));
+	assert.equal(first?.reason, LESSON_TEXT_REFUSAL);
+	// Lesson text earlier in the turn satisfies the gate, but this response's
+	// question still has only narration: upstream's guard blocks it.
+	const q2 = call("q2", "quiz", { type: "check" });
+	const second = await hook(mk([user("hi"), asst([text("Lesson.")]), asst([narration, q2])], q2, [narration, q2]));
+	assert.equal(second?.reason, NARRATION_BLOCK_REASON);
+
+	// Without a plan context only the narration guard is installed.
+	const bare = createTeacherAgent(undefined, { engine: claude }).beforeToolCall!;
+	const q3 = call("q3", "quiz", { type: "check" });
+	assert.equal((await bare(mk([user("hi"), asst([narration, q3])], q3, [narration, q3])))?.reason, NARRATION_BLOCK_REASON);
+});
