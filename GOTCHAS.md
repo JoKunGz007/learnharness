@@ -59,8 +59,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## Claude desktop redirects AppData for everything it starts
 - Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
 - Cause: Claude desktop is an MSIX app. Processes it starts write `%APPDATA%` into `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming`, and session tools see those files over the real ones. An app opened from Explorer uses the real folder, a separate profile. Shadowed real files can't be read from a session.
-- Avoid: don't judge the owner's window from `%APPDATA%` as read here; launch the app or installer with `explorer.exe <path>` to run outside the container (`/S` can't be passed that way).
-- Verify: a file only in the real folder (`lockfile`) shows up in the session view but not under the Packages path.
+- Avoid: 2026-11-08 the stale copy was renamed to `LearnHarness.bak-2026-11-08` (same Roaming folder), so `%APPDATA%\LearnHarness` read from a session is the real profile again. Keep it that way: never write under it from a session or launch LearnHarness from one; if reads look stale, check whether the Packages copy came back. Launch the app or installer with `explorer.exe <path>` to run outside the container (`/S` can't be passed that way).
+- Verify: `logs\main.log` read from a session shows the owner's latest launch, and `...\LocalCache\Roaming\LearnHarness` does not exist.
 
 ## Claude Code's usage line arrives after `message_stop`
 - Symptom: the plan-usage badge never appears; `/api/claude-code/usage` stays `{"claude-code":null}` after a turn that made no tool calls.
