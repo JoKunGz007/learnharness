@@ -11,7 +11,7 @@ Goal of the fork: run it on the owner's **Claude subscription** (Claude Code log
 ## Remotes and branches
 
 - `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private).
-- This branch = upstream 0.4.1 + upstream PRs #163, #157, #139, #127 + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
+- This branch = upstream 0.5.0 (merged 2026-11-08) + upstream PRs #163, #139, #127 (still open upstream; #157 is now upstream's own) + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
 - AGPL: if this is ever offered to others over a network, the source must be offered too. Personal use: no obligation.
 
 ## Claude subscription backend (upstream's provider + fork patches)

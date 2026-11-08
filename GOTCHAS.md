@@ -9,9 +9,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Verify: the run prints `ℹ tests N`.
 
 ## Windows-only test failures
-- Symptom: the full suite gives 14 failures (2026-11-02). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
-- Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. Not confirmed against plain upstream.
-- Avoid: don't chase them unless that code changes.
+- Symptom: the full suite gives 15 failures (2026-11-08, v0.5.0 merge; 14 before it). The 15th: `learner-image-snapshots.test.ts` "uses the shared sensitive-path guard…" (`no such file` instead of `Access denied` for an alias path). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
+- Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. All 15 also fail on plain upstream v0.5.0 (2026-11-08 run in a temp worktree).
+- Avoid: don't chase them unless that code changes. Run the full suite with quoted globs, `NODE_ENV=test npx tsx --test "tests/*.test.ts" "tests/*.test.tsx"`: unquoted, Git Bash expands them past Windows' command-line limit (`The command line is too long`). Don't edit source while it runs; a test file that loads the edited module mid-run fails for that reason.
 - Verify: same failures on `main` before and after a change.
 
 ## `next build` while `next dev` is running
