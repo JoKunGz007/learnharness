@@ -25,6 +25,7 @@ Goal of the fork: run it on the owner's **Claude subscription** (Claude Code log
 
 ```bash
 npm ci
+npm run plugins:setup   # once per checkout: plugin deps (tsc and Core plugin builds need them)
 npx next dev            # http://localhost:3000 (or the browser pane: preview_start "learnharness")
 ```
 
@@ -36,10 +37,10 @@ Then Settings → Providers → External CLI → **Claude Code** → enable, and
 
 ## Desktop app (Windows installer)
 
-Build from Git Bash (~10 min; stop any `next dev` first, it shares `.next`):
+Build from Git Bash (~10 min; stop any `next dev` first, it shares `.next`). `npm run build` also builds the Core plugins (upstream 0.6); a bare `npx next build` leaves them out of the installer. Once per checkout, after `npm ci`: `npm run plugins:setup`.
 
 ```bash
-rm -rf dist .next/standalone && npx next build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && npx electron-builder --win --x64 --publish never
+rm -rf dist .next/standalone && npm run build && node scripts/smoke-provider-runtime.mjs && node scripts/build-server.mjs && node scripts/smoke-server.mjs --electron && npx electron-builder --win --x64 --publish never
 ```
 
 - Output: `dist/LearnHarness-<ver>-x64-setup.exe` (unsigned: SmartScreen → More info → Run anyway). Data lives in `%APPDATA%\LearnHarness` (log: `logs\main.log`), separate from the dev server's `data/`; session tools see a redirected copy of it (`GOTCHAS.md`).
@@ -52,9 +53,9 @@ rm -rf dist .next/standalone && npx next build && node scripts/smoke-provider-ru
 
 This session plans, decides, talks to the user and integrates. Subagents do the heavy reading and settled edits (claude-usage D-024).
 
-- **Investigation → `lh-investigator`** (session model, read-only): upstream PRs/forks, code tracing, test/log output. One question per run, name the starting files or PR numbers.
+- **Investigation → `lh-investigator`** (Opus, medium effort, read-only): upstream PRs/forks, code tracing, test/log output. One question per run, name the starting files or PR numbers.
 - **Settled edits → `lh-implementer`** (Sonnet, `maxTurns: 60`): name files, exact change, checks to run. Settle every user-visible choice first. Stuck or turned into debugging → re-route to the investigator, or re-run one model up with `[re-run]` / `[opus]` at the start of the description. Partial return at the cap: check `git diff` first.
-- **Browser checks → `lh-checker`** (Sonnet, edits nothing): name 1–2 flows and the URL of a server you started. One run at a time (shared browser pane). Live Claude turns: Haiku, a stated turn count.
+- **Browser checks → `lh-checker`** (Sonnet, edits nothing): name 1–2 flows and the URL of a server you started; a longer list is several runs, one after another (the 51–70-call runs each bundled more, claude-usage D-030). One run at a time (shared browser pane). Live Claude turns: Haiku, a stated turn count.
 - **"Where is X" → built-in `Explore`.**
 - ~20–40 tool calls per delegation; split bigger work. `SendMessage` for a follow-up to the same agent.
 - Inline: small edits, short commands, reading one known file, anything needing the user.

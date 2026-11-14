@@ -83,12 +83,16 @@ function fixture({ packaged = true, updaterMissing = false, feed = "https://feed
 		app, BrowserWindow: FakeWindow,
 		Menu: { buildFromTemplate: (value: typeof menu) => value, setApplicationMenu: (value: typeof menu) => { menu = value; } },
 		ipcMain: { on() {}, handle: (channel: string, fn: (event: unknown) => unknown) => handles.set(channel, fn) },
+		nativeTheme: { shouldUseDarkColors: true, themeSource: "system", on() {} },
 		session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
 	};
 	let updaterLoads = 0;
 	const context = createContext({
 		require: (id: string) => {
 			if (id === "electron") return electron;
+			// The actual dev readiness helper is tested separately; keep this
+			// updater shell fixture entirely offline and already ready.
+			if (id === "./dev-server-readiness.cjs") return { waitForDevServer: async () => {} };
 			if (id === "electron-updater") {
 				updaterLoads++;
 				if (updaterMissing) throw new Error("missing updater");
@@ -105,7 +109,7 @@ function fixture({ packaged = true, updaterMissing = false, feed = "https://feed
 		},
 		// Fork: the updater runs only with LH_UPDATE_FEED; the fixture opts in by default.
 		process: { argv: [], env: { LH_DEV_URL: "http://127.0.0.1:9000", ...(feed ? { LH_UPDATE_FEED: feed } : {}) }, platform: "darwin", on() {} },
-		__dirname: path.dirname(mainFile), URL,
+		__dirname: path.dirname(mainFile), URL, AbortController,
 		setInterval: (callback: () => void, delay: number) => intervals.push({ callback, delay }),
 		setTimeout() {},
 		fixtureChild: { kill: (signal: string) => order.push(signal) },

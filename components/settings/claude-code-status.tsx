@@ -123,7 +123,7 @@ export function ClaudeCodeInstallationStatus() {
 			<span className="font-prose text-(length:--lh-prose-size) text-foreground">Claude Code</span>
 			<Toggle label="Claude Code" checked={enabled} disabled={!loaded || saving} onChange={(next) => void save(next)} />
 		</div>
-		{error && <p role="alert" className="text-xs text-red-400">{error}</p>}
+		{error && <p role="alert" className="text-xs text-error">{error}</p>}
 		{enabled && <>
 			<div className="flex flex-wrap items-center gap-3">
 				<span role="status" className="text-xs text-muted-foreground">{busy ? "Checking…" : claudeCodeStatusLabel(status)}</span>
@@ -131,7 +131,7 @@ export function ClaudeCodeInstallationStatus() {
 			</div>
 			{(() => { const lines = claudeCodeAuthLines(status?.auth); return lines && <>
 				<p className="text-xs" data-testid="claude-code-account">{lines.text}</p>
-				{lines.warning && <p className="text-xs text-amber-400" data-testid="claude-code-billing-warning">{lines.warning}</p>}
+				{lines.warning && <p className="text-xs text-warning" data-testid="claude-code-billing-warning">{lines.warning}</p>}
 			</>; })()}
 			<div className="flex items-center gap-3 text-xs text-foreground">
 				<Toggle label="Allow background use" checked={background} disabled={!loaded || saving} onChange={(next) => void save(enabled, next)} />
