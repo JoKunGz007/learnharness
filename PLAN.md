@@ -2,7 +2,9 @@
 
 _The current state only, not a log. Over ~200 lines: move finished entries to `docs/archive/PLAN-<date>.md` and leave a pointer._
 
-## Current checkpoint (2026-11-08)
+## Current checkpoint (2026-11-14)
+
+- **Upstream v0.6.1 fetched, not merged (2026-11-14).** `upstream/main` = `cb25c8e4` (tags v0.6.0, v0.6.1), 189 commits past `main`: flashcards (`851afdf0`, `96df4bf7`, `ab628514`, …), a plugin system (core vs community plugins, drawing pad, coding practice), security fixes (`d05b79e5`), side-context budgeting. Open question: replace our FSRS review page (D-005) with upstream's flashcards; the owner leans that way if upstream's is better. Comparison, conflict list and `claude-code` risks not finished.
 
 - **Upstream v0.5.0 merged (2026-11-08).** `7c35625` (merge) + `33a942d` (test), fast-forwarded into `main`; pushed; installed by the owner from Explorer (2026-11-08). Resolution: upstream's finished #157 folder restrictions replace ours; `stream.ts` keeps our env scrub and `--setting-sources ""` and adds upstream's `CLAUDE_CODE_DISABLE_CLAUDE_MDS`; `teacher-agent.ts` chains one `beforeToolCall` (our lesson-text gate, then upstream's narration guard, which is inert on `claude-code` since the CLI sends no narration signature). #163/#139/#127 are still open upstream, so ours stay. Evidence:
   - Full suite 3,732 tests, 15 fail, all also failing on plain upstream (`GOTCHAS.md`). `tsc` clean. The new chain test fails if the guard call is removed.
@@ -38,7 +40,7 @@ The 0.4.1 port bullets below are history. `main` before v0.5.0 = the upstream 0.
 ## Next
 1. Owner uses the installed 0.5.0 (Start menu → LearnHarness). Done when a Teach-phase turn there shows lesson text with each question; the real profile's `logs\main.log` is now readable from a session (`GOTCHAS.md`). Real profile models (read 2026-11-08): strong `claude-code` Haiku 5.5 (medium), cheap and vision Sonnet 5.5 (high).
 2. Watch whether auto-extraction fills the graph in a normal Teach session. The owner chose `graph.extractionChunkTokens` = 1024 on 2026-10-26 (default 4096; `GOTCHAS.md`), but the real profile has no `graph` settings (read 2026-11-08), so it runs on the default: set it in Settings if extraction is slow. Next step after that: a trigger at `probe_done`/session end.
-3. Remove the worktree `D:\Projects\learnharness-041` and its branch `port/upstream-0.4.1` when the owner agrees: the 0.5.0 installer supersedes its `dist\`. Rollback installers: `dist/LearnHarness-0.3.9-x64-setup.exe` in the main checkout. Later syncs: `git fetch upstream && git merge upstream/main` on a branch, `tsc`, full suite with quoted globs (`GOTCHAS.md`), rebuild.
+3. Remove the worktree `D:\Projects\learnharness-041` and its branch `port/upstream-0.4.1` (also on `origin`): the owner agreed 2026-11-14 if it isn't needed. Checked that day: branch merged into `main`, tracked tree clean, but its ignored `data/` holds 52 chats (main's `data/` 38) and its `chatgpt-credentials.json` differs from main's; held until the owner says that dev data is disposable. The 0.5.0 installer supersedes its `dist\`. Rollback installers: `dist/LearnHarness-0.3.9-x64-setup.exe` in the main checkout. Later syncs: `git fetch upstream && git merge upstream/main` on a branch, `tsc`, full suite with quoted globs (`GOTCHAS.md`), rebuild.
 4. Two job gaps, reported to the owner 2026-11-01, not fixed: a finished demo only appears after the next turn (opening the chat doesn't deliver it), and a job refused with background use off stays failed when the toggle returns.
 
 ## Later / ideas
