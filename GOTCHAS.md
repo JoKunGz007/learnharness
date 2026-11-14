@@ -10,9 +10,22 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 
 ## Windows-only test failures
 - Symptom: the full suite gives 15 failures (2026-11-08, v0.5.0 merge; 14 before it). The 15th: `learner-image-snapshots.test.ts` "uses the shared sensitive-path guard…" (`no such file` instead of `Access denied` for an alias path). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
+- 2026-11-14, v0.6.1 merge: 28 failures. New on top of the 15: `appearance-chrome` (1) and `desktop-platform` (1) path separators; `code-ligatures` (1), `plugin-api-reference` (1) and probably `themes` (1) CRLF; `session-identity` (4) `mkdtemp` under an undefined home; `plugin-install-local` (1) quoting; `safe-fetch-connector` (2) and `plugin-authoring-bundle` (1) not traced. None is in a file the fork modifies; this set was not run on plain upstream v0.6.1. `custom-provider-restart` (2) timed out in one of two runs.
 - Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. All 15 also fail on plain upstream v0.5.0 (2026-11-08 run in a temp worktree).
 - Avoid: don't chase them unless that code changes. Run the full suite with quoted globs, `NODE_ENV=test npx tsx --test "tests/*.test.ts" "tests/*.test.tsx"`: unquoted, Git Bash expands them past Windows' command-line limit (`The command line is too long`). Don't edit source while it runs; a test file that loads the edited module mid-run fails for that reason.
 - Verify: same failures on `main` before and after a change.
+
+## Typecheck and Core plugins need the plugin setup (0.6+)
+- Symptom: `npx tsc --noEmit` prints about 170 errors under `plugins/` (`Cannot find module 'learnharness-plugin-api'`, `@codemirror/*`); or the dev server has no Core plugins (no Flashcards under Settings → Core plugins).
+- Cause: each plugin has its own `node_modules`, and Core plugins are built into `core-plugins/` by `npm run plugins:build-core`. `npm run dev` and `npm run build` do that build; a bare `npx next dev` (the `learnharness` preview config) or `npx next build` does not.
+- Avoid: once per checkout, `npm run plugins:setup`. Before a bare `next dev`, `npm run plugins:build-core && npm run plugins:build-authoring`. Build the installer with `npm run build`.
+- Verify: `tsc` prints nothing; Flashcards is listed under Core plugins.
+
+## Opening a chat URL directly gives a 500 in `next dev`
+- Symptom: loading or reloading `/chat/<id>` returns 500 with `Cannot add property changed, object is not extensible` at `components/chat.tsx` (`inputViewReader.changed = …`). Opening the same chat from the sidebar works.
+- Cause: upstream 0.6 adds a property to a `useRef` object, and React's development server build seals ref objects (`Object.seal` appears in `react-dom-server.node.development.js`, not in the production file). Seen 2026-11-14; production build not checked.
+- Avoid: in the dev server, open `/` and click the chat. Also restart the dev server after switching branches: it served a session list stuck on "Loading…".
+- Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:3000/chat/<id>` prints 500 while the sidebar route renders.
 
 ## `next build` while `next dev` is running
 - Symptom: a broken or half-written `.next`, or a dev server that dies mid-build.
@@ -55,6 +68,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: Claude Code puts its session id and its cwd into the prompt; a random id or a fresh temp folder per process changes the prompt text early, and nothing after it matches. Also, the app renders the last message differently once it becomes history, so the previous turn's own breakpoint never lines up.
 - Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/claude-code/stream.ts`, and the `cache_control` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
 - Verify: in a chat record, a later turn's first call has `cacheRead` ≫ 9k and a small `cacheWrite`.
+- 2026-11-14 (v0.6.1, Haiku 4.5): the check above fails. Three new processes in one chat each read 7,816 and re-wrote the history; the session id, the fixed folder and the `cache_control` are all still in the code. Open: `PLAN.md` § Next 1. A flashcard worker request (3,762 input tokens, one call per task) had no cache read or write at all; whether that is the model's minimum cacheable size was not checked.
 
 ## Claude desktop redirects AppData for everything it starts
 - Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
