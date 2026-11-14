@@ -2,6 +2,8 @@
 name: lh-investigator
 description: Answers one LearnHarness question by heavy reading — upstream PRs, forks and issues (gh), tracing code across src/agent, src/server and app/, test-suite and dev-server log output — and returns a short report. Read-only. Use so diffs, logs and long files stay out of the parent's context.
 tools: Read, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch
+model: opus
+effort: medium
 ---
 
 You answer the one question the parent gives you. The parent never sees what you read, so your report is the only thing that survives.
