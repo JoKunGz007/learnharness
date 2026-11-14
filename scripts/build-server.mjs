@@ -99,6 +99,39 @@ for (const extra of ["plugins", "dist", path.join("node_modules", "electron")]) 
 	}
 }
 
+// 2d) Fork: Next links each external package into .next/node_modules/<name>-<hash>. The Windows
+// installer ships those links as plain copies, so a package whose dependencies sit beside it in a
+// NESTED node_modules (shiki under @streamdown/code/node_modules) can no longer find them: every
+// page answered 500 with "Cannot find package '@shikijs/core'". Hoist that nested folder's
+// packages to standalone/node_modules, where a copy still resolves them. A different version
+// already there is refused, never overwritten.
+{
+	const topModules = path.join(STANDALONE, "node_modules");
+	const aliases = path.join(STANDALONE, ".next", "node_modules");
+	const packagesIn = (dir) => fs.readdirSync(dir).flatMap((name) => name.startsWith("@")
+		? fs.readdirSync(path.join(dir, name)).map((sub) => path.join(name, sub))
+		: name.startsWith(".") ? [] : [name]);
+	const versionOf = (dir) => JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf-8")).version;
+	for (const alias of exists(aliases) ? fs.readdirSync(aliases) : []) {
+		const link = path.join(aliases, alias);
+		if (!fs.lstatSync(link).isSymbolicLink()) continue;
+		const real = fs.realpathSync(link);
+		const parts = real.split(path.sep);
+		const nested = parts.slice(0, parts.lastIndexOf("node_modules") + 1).join(path.sep);
+		if (nested === fs.realpathSync(topModules)) continue;
+		for (const name of packagesIn(nested)) {
+			const from = path.join(nested, name), to = path.join(topModules, name);
+			if (!exists(to)) {
+				copyTree(from, to);
+				console.log(`[build-server] hoisted for ${alias}: ${name}`);
+			} else if (versionOf(to) !== versionOf(from)) {
+				console.error(`[build-server] REFUSING: ${alias} needs ${name}@${versionOf(from)} but standalone/node_modules has ${versionOf(to)}.`);
+				process.exit(1);
+			}
+		}
+	}
+}
+
 // 3) Sanity: the runtime-read prompt assets must be present (the teacher
 //    agent reads them from disk at request time).
 for (const asset of [
