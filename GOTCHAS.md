@@ -101,3 +101,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: not traced; something keeps the process open after the last test. Same with the 2026-11-01 cap fix stashed, on the 0.4.1 port. Windows-only or not is unknown.
 - Avoid: pass `--test-force-exit` (the full suite then finishes in about 3.5 minutes), or run the file alone under `timeout 60` and read the subtest counts.
 - Verify: `NODE_ENV=test timeout 60 npx tsx --test tests/jobs.test.ts` shows `pass 56`, exit 124.
+
+## The installed server can't find a package the build has
+- Symptom: the installed app's `logs\main.log` shows `Failed to load external module shiki-<hash>: Cannot find package '@shikijs/core'`, while the dev server, `smoke-server` and `dist/win-unpacked` are all fine.
+- Cause: Next links each external package into `.next/node_modules/<name>-<hash>`. The installer ships those links as plain copies. `shiki` sits in a nested `node_modules` (`@streamdown/code/node_modules`) next to its dependencies, and a copy under `.next/node_modules` can't reach them. In the repo and in `win-unpacked` the links still resolve, so nothing there fails.
+- Avoid: step 2d in `scripts/build-server.mjs` (fork) copies such a nested folder's packages to `standalone/node_modules` and refuses the build on a version clash. Keep it through merges.
+- Verify: copy `.next/standalone` with links followed (`cp -rL`) to a folder outside the repo and run it there (recipe in `CLAUDE.md` § Desktop app); `/chat/new` returns 200 and the log has no `ERR_MODULE_NOT_FOUND`. A plain GET to the installed window's own server proves nothing: it rejects requests without its per-launch header.
