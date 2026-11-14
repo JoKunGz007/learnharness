@@ -66,9 +66,17 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## `claude -p` processes don't share the prompt cache by default
 - Symptom: every turn on `claude-code` re-writes the whole conversation to cache (a new process's first call reads only ~9k, the system prompt + tools).
 - Cause: Claude Code puts its session id and its cwd into the prompt; a random id or a fresh temp folder per process changes the prompt text early, and nothing after it matches. Also, the app renders the last message differently once it becomes history, so the previous turn's own breakpoint never lines up.
-- Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/claude-code/stream.ts`, and the `cache_control` on the last history block in `transcript.ts`. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
-- Verify: in a chat record, a later turn's first call has `cacheRead` ≫ 9k and a small `cacheWrite`.
-- 2026-11-14 (v0.6.1, Haiku 4.5): the check above fails. Three new processes in one chat each read 7,816 and re-wrote the history; the session id, the fixed folder and the `cache_control` are all still in the code. Open: `PLAN.md` § Next 1. A flashcard worker request (3,762 input tokens, one call per task) had no cache read or write at all; whether that is the model's minimum cacheable size was not checked.
+- Cause, second half (found 2026-11-14): a cache entry matches only on a whole content block. Upstream merges the re-sent history into one text block, which grows every turn, so a fresh process matched only the system prompt and tools (7,816 on v0.6.1, Haiku 4.5). The experiments below sent the same input twice and never tested a growing history.
+- Avoid: keep `--session-id` (derived from the chat key) and the fixed working folder in `src/agent/claude-code/stream.ts`, and the history chunks in `transcript.ts` (D-015): cut every `HISTORY_CHUNK` = 8 messages from the start, `cache_control` after the last full chunk. Don't cut at user messages: in a lesson the learner's answers are tool results, so everything after the first message is one growing run. Experiments: two processes, same input → fixed id + fixed folder read 11,356; either one random → read 0.
+- Limits: each fresh process re-writes up to 7 messages past the last full chunk; a history under 8 messages gets nothing back; turn 1 sends the first message without its `[user]` label, so turn 2 re-writes it.
+- Verify: restart the server before each of two turns in one chat (answering a pending question otherwise resumes the live process, which always reads its own cache). The second turn's first call has `cacheRead` above the first's and a small `cacheWrite` (2026-11-14: 7,816 / 1,359, then 9,081 / 223).
+- Not checked: a flashcard worker request (3,762 input tokens, one call per task) had no cache read or write at all; whether that is the model's minimum cacheable size.
+
+## Chat pages answer 500 in `next dev` after an upstream merge
+- Symptom: `/chat/<id>` returns HTTP 500 on load although the page then renders and works; server log: `TypeError: Cannot add property changed, object is not extensible` at `components/chat.tsx`.
+- Cause: upstream 0.6.1 adds a `.changed` property to `useRef` objects (`inputViewReader` in `Chat`; the native, practice and custom view readers in `DockOverlay`). React seals ref objects in development, so the server render throws.
+- Avoid: the fork holds those four readers in `useState(() => ({ current: null }))`. A merge that brings the `useRef` lines back brings the 500 back.
+- Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:3000/chat/new` prints 200.
 
 ## Claude desktop redirects AppData for everything it starts
 - Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
