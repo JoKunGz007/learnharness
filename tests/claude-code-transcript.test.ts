@@ -154,6 +154,29 @@ test("thinking blocks are omitted from replay", () => {
 	assert.deepEqual(toClaudeInput(messages).userContent, [{ type: "text", text: "[user]\nhi\n\n[assistant]\nHello.", ...CC }, { type: "text", text: "[user]\nbye" }]);
 });
 
+// Fork: a cache entry matches only on whole blocks, so full history chunks must reappear unchanged
+// next turn, and the breakpoint must sit on a boundary that survives (the last full chunk).
+test("full history chunks are stable across turns and carry the breakpoint", () => {
+	// A lesson: one user message, then answers arrive as tool results.
+	const lesson = (rounds: number): Message[] => [
+		user("teach me"),
+		...Array.from({ length: rounds }, (_, i) => [
+			assistant([{ type: "toolCall", id: `q-${i}`, name: "quiz", arguments: { n: i } }]),
+			toolResult("quiz", [{ type: "text", text: `answer ${i}` }]),
+		]).flat(),
+	];
+	const strip = (blocks: object[]) => blocks.map((block) => ({ ...block, cache_control: undefined }));
+	const marked = (blocks: { cache_control?: unknown }[]) => blocks.flatMap((block, i) => (block.cache_control ? [i] : []));
+
+	const earlier = toClaudeInput(lesson(6)).userContent; // history 12 = one full chunk + 4
+	const later = toClaudeInput(lesson(11)).userContent; // history 22 = two full chunks + 6
+	assert.equal(earlier.length, 3);
+	assert.deepEqual(marked(earlier), [0]);
+	assert.equal(later.length, 4);
+	assert.deepEqual(marked(later), [1]);
+	assert.deepEqual(strip(later)[0], strip(earlier)[0]);
+});
+
 test('toStreamJsonLine emits {"type":"user","message":{"role":"user","content":[...]}}', () => {
 	assert.deepEqual(JSON.parse(toStreamJsonLine([{ type: "text", text: "hi" }])), {
 		type: "user",

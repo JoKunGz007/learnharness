@@ -78,6 +78,35 @@ function toUnlabelledBlocks(content: string | (TextContent | ImageContent)[]): C
 	return content.map((block) => (block.type === "text" ? { type: "text", text: block.text } : toImageBlock(block)));
 }
 
+// Fork: the re-sent history is cut every HISTORY_CHUNK messages, counted from the start of the
+// conversation, so a chunk's blocks never change once it is full. A cache entry only matches on a
+// whole-block boundary: one merged block (upstream) grows every turn and never matches again.
+// Not cut per user message: in a lesson the learner's answers are tool results, so everything
+// after the first message would be one growing run. 8 keeps a long gap between two fresh
+// processes inside the API's 20-block lookback (about 160 messages).
+export const HISTORY_CHUNK = 8;
+
+function toHistoryBlocks(history: Message[]): ClaudeContentBlock[] {
+	const chunks: ClaudeContentBlock[][] = [];
+	let lastFull = -1;
+
+	for (let start = 0; start < history.length; start += HISTORY_CHUNK) {
+		const messages = history.slice(start, start + HISTORY_CHUNK);
+		const blocks = toContentBlocks(messages.flatMap(getReplayParts));
+		if (blocks.length === 0) continue;
+		if (messages.length === HISTORY_CHUNK) lastFull = chunks.length;
+		chunks.push(blocks);
+	}
+
+	// The breakpoint goes after the last FULL chunk: the open chunk's end is not a block boundary
+	// next turn. With no full chunk yet it stays on the last block, as before.
+	const marked = chunks[lastFull >= 0 ? lastFull : chunks.length - 1];
+	const last = marked?.at(-1);
+	if (marked && last) marked[marked.length - 1] = { ...last, cache_control: { type: "ephemeral", ttl: "1h" } };
+
+	return chunks.flat();
+}
+
 function toUserContent(conversation: Message[]): ClaudeContentBlock[] {
 	const [first] = conversation;
 	if (conversation.length === 1 && first?.role === "user") return toUnlabelledBlocks(first.content);
@@ -85,10 +114,7 @@ function toUserContent(conversation: Message[]): ClaudeContentBlock[] {
 	// Fork: a prompt-cache breakpoint after the re-sent history (everything before the newest message),
 	// so the next turn's fresh process, which starts with the same history, reads it back instead of
 	// re-writing it. 1h matches the TTL Claude Code uses for its own breakpoints.
-	const history = toContentBlocks(conversation.slice(0, -1).flatMap(getReplayParts));
-	const last = history.at(-1);
-	if (last) history[history.length - 1] = { ...last, cache_control: { type: "ephemeral", ttl: "1h" } };
-	return [...history, ...toContentBlocks(conversation.slice(-1).flatMap(getReplayParts))];
+	return [...toHistoryBlocks(conversation.slice(0, -1)), ...toContentBlocks(conversation.slice(-1).flatMap(getReplayParts))];
 }
 
 export function toClaudeInput(messages: Message[]): ClaudeInput {
