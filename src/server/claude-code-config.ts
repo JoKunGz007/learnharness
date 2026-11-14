@@ -12,7 +12,8 @@ export function claudeCodeEnabled(): boolean {
  * a fresh check at each admission, like the opt-in. */
 export function claudeCodeBackgroundAllowed(): boolean {
 	const cc = settingsStore.readSettings()?.claudeCode;
-	return cc?.enabled === true && cc.allowBackgroundUse !== false;
+	// Installed too, like upstream's own check (providerKeyPresent): with the binary gone, background work stays deferred instead of failing at spawn.
+	return cc?.enabled === true && cc.allowBackgroundUse !== false && getClaudeBinary() !== null;
 }
 
 /** Installation/opt-in availability only, never authenticated readiness. */

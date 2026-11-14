@@ -1,6 +1,6 @@
 // Fork: one background gate for claude-code (seam in subscription-connections), dispatch refusal, wake on toggle.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
@@ -8,6 +8,10 @@ import test, { after } from "node:test";
 const testData = mkdtempSync(join(tmpdir(), "lh-cc-gate-data-"));
 process.env.LH_DATA_DIR = testData;
 after(() => rmSync(testData, { recursive: true, force: true }));
+// The gate also needs an installed binary: an empty stand-in, never launched.
+const fakeBinary = join(testData, process.platform === "win32" ? "claude.exe" : "claude");
+writeFileSync(fakeBinary, "", { mode: 0o755 });
+process.env.LH_CLAUDE_BIN = fakeBinary;
 const { connectionBackgroundAllowed, onSubscriptionChange } = await import("../src/agent/subscription-connections.ts");
 const { PUT } = await import("../app/api/settings/[section]/route.ts");
 const { writeSettings } = await import("../src/store/settings.ts");
@@ -37,6 +41,22 @@ test("the gate follows the toggle; background refused at dispatch, foreground ne
 	assert.equal(connectionBackgroundAllowed("claude-code"), true);
 	assert.doesNotMatch((await failure(piEngineForSpec(spec as never, true), aborted)) ?? "", REFUSAL);
 	assert.equal(connectionBackgroundAllowed("openrouter"), true);
+});
+
+test("background use is refused while the binary is missing", async (t) => {
+	const { getClaudeBinary } = await import("../src/agent/claude-code/binary.ts");
+	const names = ["LH_CLAUDE_BIN", "PATH", "Path", "HOME", "USERPROFILE", "APPDATA", "npm_config_prefix"];
+	const saved = names.map((name) => [name, process.env[name]] as const);
+	try {
+		for (const name of names) delete process.env[name];
+		process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = process.env.npm_config_prefix = join(testData, "empty");
+		if (getClaudeBinary() !== null) return t.skip("a system-wide claude is installed");
+		writeSettings({ version: 1, claudeCode: { enabled: true } });
+		assert.equal(connectionBackgroundAllowed("claude-code"), false);
+	} finally {
+		for (const [name, value] of saved) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+	}
+	assert.equal(connectionBackgroundAllowed("claude-code"), true);
 });
 
 test("steers on claude-code with the toggle off get the 403", async () => {
