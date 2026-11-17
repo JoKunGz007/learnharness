@@ -107,3 +107,16 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: Next links each external package into `.next/node_modules/<name>-<hash>`. The installer ships those links as plain copies. `shiki` sits in a nested `node_modules` (`@streamdown/code/node_modules`) next to its dependencies, and a copy under `.next/node_modules` can't reach them. In the repo and in `win-unpacked` the links still resolve, so nothing there fails.
 - Avoid: step 2d in `scripts/build-server.mjs` (fork) copies such a nested folder's packages to `standalone/node_modules` and refuses the build on a version clash. Keep it through merges.
 - Verify: copy `.next/standalone` with links followed (`cp -rL`) to a folder outside the repo and run it there (recipe in `CLAUDE.md` § Desktop app); `/chat/new` returns 200 and the log has no `ERR_MODULE_NOT_FOUND`. A plain GET to the installed window's own server proves nothing: it rejects requests without its per-launch header. Seen fixed 2026-11-18: the reinstalled 17:03 build launched with no `ERR_MODULE_NOT_FOUND`, and its server (run headless) rendered a shiki-highlighted Python block in a reply.
+
+## Output-cap fixes upstream don't apply to `claude-code`
+- Symptom: upstream issues/PRs about `maxTokens` clamps (#642, #733, PR #757, PR #749) look relevant.
+- Cause: the `claude-code` provider never passes pi's `maxTokens` to the CLI (`src/agent/claude-code/stream.ts` has none; `provider.ts` only lists it as metadata), so the CLI uses its own cap.
+- Avoid: skip such ports unless the CLI launch starts passing a token limit.
+- Verify: `grep -n maxTokens src/agent/claude-code/*.ts`.
+
+## Triage tools for upstream PRs and issues
+- `gh issue view N` without `--json` fails with a "Projects (classic) deprecated" GraphQL error: use `--json title,body,comments`.
+- Conflict check without touching the tree: `gh pr diff N > .tmp/prN.diff && git apply --check .tmp/prN.diff`.
+- `grep -r` from the repo root times out on `node_modules`: scope it to `src`, `app`, `components`, `plugins`.
+- Upstream #760 ("`tex.wasm` missing") is a false alarm for us: rich-code-blocks ships `tex.wasm.gz` by design, present in `dist/win-unpacked` and the installed app (2026-11-18).
+- Parallel subagents writing `.tmp/out.log` overwrite each other: give each its own file.
