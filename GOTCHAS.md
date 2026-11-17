@@ -116,7 +116,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 
 ## Triage tools for upstream PRs and issues
 - `gh issue view N` without `--json` fails with a "Projects (classic) deprecated" GraphQL error: use `--json title,body,comments`.
-- Conflict check without touching the tree: `gh pr diff N > .tmp/prN.diff && git apply --check .tmp/prN.diff`.
+- Conflict check without touching the tree: `gh pr diff N > .tmp/prN.diff && git apply --check .tmp/prN.diff`. A plain check can fail where `git apply --3way --check` is clean (CRLF/offsets; #689, #615, #446). `gh pr diff` of a stacked PR contains the whole stack (#772 includes #770 and #771): apply only the top one.
 - `grep -r` from the repo root times out on `node_modules`: scope it to `src`, `app`, `components`, `plugins`.
 - Upstream #760 ("`tex.wasm` missing") is a false alarm for us: rich-code-blocks ships `tex.wasm.gz` by design, present in `dist/win-unpacked` and the installed app (2026-11-18).
 - Parallel subagents writing `.tmp/out.log` overwrite each other: give each its own file.
