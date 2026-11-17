@@ -2,7 +2,15 @@
 
 _The current state only, not a log. Over ~200 lines: move finished entries to `docs/archive/PLAN-<date>.md` and leave a pointer._
 
-## Current checkpoint (2026-11-14)
+## Current checkpoint (2026-11-18)
+
+- **0.6.1 installer reinstalled; shiki fix seen working (2026-11-18).** The owner installed the 17:03 build. Real-profile `main.log`, launch 2026-11-17 14:26 UTC: server up, updater disabled, no `ERR_MODULE_NOT_FOUND` (the last shiki error is from the 14 Nov build); no turn was run in the window after that launch. The installed copy's server (`%LOCALAPPDATA%\Programs\learnharness`, run headless on port 3123, temp profile; recipe `CLAUDE.md` § Desktop app), browser pane via `lh-checker`:
+  - Claude Code 2.1.326 detected, signed in, Pro, subscription auth. Enabled; Strong, Cheap and Vision all `claude-code` Haiku 5.5.
+  - 2 learner turns (`chat_mwl0hnrx_e9c26c43`): both replies arrived, `POST /api/chat` 200, no error banner. The second reply's Python code block rendered with shiki (`pre.language-python`, highlighted spans). Badge `5h 65% · 7d 50% · chat <0.1%`. Server log: startup lines only.
+  - Both replies were probe questions with no lesson text first: expected, since the lesson-text rule starts once the plan exists (`src/agent/lesson-text-gate.ts`, D-011).
+  - Each `GET …/stream` showed 200 then `net::ERR_ABORTED` in the pane; probably the client closing the stream, not traced.
+  - **Not verified:** a Teach-phase turn on 0.6.1, any turn in the owner's window and real profile.
+- Branches `merge/upstream-0.6.1` and `fsrs-review` deleted (both were in `main`); `main` pushed to `origin` at `4cd7f863` (2026-11-18).
 
 - **Cache, review fixes and installer on 0.6.1 (2026-11-14, later session).**
   - **Prompt cache across fresh processes fixed** (D-015, `src/agent/claude-code/transcript.ts`). Live, Haiku 4.5, `data/chats/chat_mwg6y3x8_6bcd0108.json`, dev server restarted before each turn to force a new process: the first fresh process read 7,816 / wrote 1,359, the second read 9,081 / wrote 223. Limits and how to check: `GOTCHAS.md`.
@@ -51,10 +59,10 @@ The 0.4.1 port bullets below are history. `main` before v0.5.0 = the upstream 0.
 - **Not verified:** the Hard/re-check review paths live (unit tests only), a node reaching Due now, practice past one problem, a full teach session to its end, the background-use toggle, Sonnet/Opus models, uninstall. `automatic-updates` 28/29 (the failure is upstream's POSIX-path assertion, fails on upstream's `main.cjs` too).
 
 ## Next
-1. Reinstall `dist/LearnHarness-0.6.1-x64-setup.exe` (the 17:03 build; from Explorer, `GOTCHAS.md`) and run a turn in the window. Done when `main.log` has no `ERR_MODULE_NOT_FOUND` after launch and a reply with a code block renders. Before a file-based flashcard generation, lower Settings → Agent worker request concurrency from 8 to 2 or 3: each running request is one `claude` process (D-014).
+1. Reinstall and shiki check done 2026-11-18 (checkpoint). Left: a turn in the owner's window. Before a file-based flashcard generation, lower Settings → Agent worker request concurrency from 8 to 2 or 3: each running request is one `claude` process (D-014).
 2. Report upstream: the `.changed`-on-a-ref 500 in `components/chat.tsx` (`GOTCHAS.md`).
-3. Left from the merge review, owner's call: `@agentclientprotocol/sdk` in `package.json` has no import under `src`, `app`, `components`, `electron` or `scripts` (plugins and tests not searched); `watchedProvider` in `src/server/jobs.ts` spells `"claude-code"` instead of `CLAUDE_CODE_PROVIDER`; plugin question types pass the lesson-text gate (known, D-014).
-4. Owner uses the installed 0.5.0 (Start menu → LearnHarness). Done when a Teach-phase turn there shows lesson text with each question; the real profile's `logs\main.log` is now readable from a session (`GOTCHAS.md`). Real profile models (read 2026-11-08): strong `claude-code` Haiku 5.5 (medium), cheap and vision Sonnet 5.5 (high).
+3. Left from the merge review, owner's call (rechecked 2026-11-18, all still present): `@agentclientprotocol/sdk` in `package.json` has no import under `src`, `app`, `components`, `electron`, `scripts`, `plugins` or `tests`; `watchedProvider` in `src/server/jobs.ts` spells `"claude-code"` instead of `CLAUDE_CODE_PROVIDER`; plugin question types pass the lesson-text gate (known, D-014).
+4. Owner uses the installed 0.6.1 (Start menu → LearnHarness). Done when a Teach-phase turn there shows lesson text with each question; the real profile's `logs\main.log` is now readable from a session (`GOTCHAS.md`). Real profile models (read 2026-11-08): strong `claude-code` Haiku 5.5 (medium), cheap and vision Sonnet 5.5 (high).
 5. Watch whether auto-extraction fills the graph in a normal Teach session. The owner chose `graph.extractionChunkTokens` = 1024 on 2026-10-26 (default 4096; `GOTCHAS.md`), but the real profile has no `graph` settings (read 2026-11-08), so it runs on the default: set it in Settings if extraction is slow. Next step after that: a trigger at `probe_done`/session end.
 6. Done 2026-11-14 (owner's OK): worktree `D:\Projects\learnharness-041` (incl. its dev `data/`), local and `origin` branch `port/upstream-0.4.1` removed. Rollback installers: `dist/LearnHarness-0.3.9-x64-setup.exe` in the main checkout. Later syncs: `git fetch upstream && git merge upstream/main` on a branch, `tsc`, full suite with quoted globs (`GOTCHAS.md`), rebuild.
 7. Two job gaps, reported to the owner 2026-11-01, not fixed: a finished demo only appears after the next turn (opening the chat doesn't deliver it), and a job refused with background use off stays failed when the toggle returns.

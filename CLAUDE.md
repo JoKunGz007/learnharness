@@ -29,7 +29,7 @@ npm run plugins:setup   # once per checkout: plugin deps (tsc and Core plugin bu
 npx next dev            # http://localhost:3000 (or the browser pane: preview_start "learnharness")
 ```
 
-Then Settings → Providers → External CLI → **Claude Code** → enable, and pick `claude-code:*` models. Status API: `curl -s localhost:3000/api/claude-code`.
+Then Settings → Providers → External CLI → **Claude Code** → enable, and pick `claude-code:*` models (a fresh profile needs Strong, Cheap and Vision all set). Read the connection status there: `/api/claude-code` rejects a bare curl (`GOTCHAS.md`).
 
 - `npm test` uses POSIX env syntax; from Git Bash run `NODE_ENV=test npx tsx --test tests/<file>.test.ts`. Typecheck: `npx tsc --noEmit`.
 - Known Windows test failures: POSIX file-mode and signal assertions (`GOTCHAS.md`).

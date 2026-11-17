@@ -37,13 +37,13 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Symptom: requests to the `.exe`'s server (random port in `main.log`) fail authorization.
 - Cause: the window passes a per-launch `x-learnharness-desktop` secret (`src/server/desktop-access.ts`).
 - Avoid: test the packaged server headless instead (`CLAUDE.md` § Desktop app), without `LH_DESKTOP_SERVER`.
-- Verify: `curl localhost:3123/api/claude-code` returns the status.
+- Verify: the headless server is reachable (`curl -s -o /dev/null -w "%{http_code}" localhost:3123/` → 200). `/api/claude-code` itself answers 403 "requires a same-origin LearnHarness request" to a bare curl or a hand-written fetch, headless or dev (`src/server/claude-code.ts`: it wants `x-learnharness-claude-code: 1` and no foreign origin; a curl with that header not tried). Read the status in Settings → Providers → Claude Code instead (2026-11-18).
 
 ## Browser-pane clicks on settings controls don't register
 - Symptom: coordinate/ref clicks on "Set up your models", the model dropdowns or Connect do nothing.
 - Cause: seen while the pane was hidden or another overlay had focus; not reproduced as an app bug.
-- Avoid: use `find` refs with the pane visible, or copy `data/settings.json`.
-- Verify: `GET /api/claude-code` shows the expected status.
+- Avoid: use `find` refs with the pane visible, or copy `data/settings.json`. The Claude Code switch under External CLI can also look unchanged after a click while its `PUT /api/settings/claudeCode` succeeded (2026-11-18, packaged server); each further click sends another PUT, so read `GET /api/settings` (`claudeCode.enabled`) before clicking again. A fresh profile can't start a chat until Strong, Cheap and Vision are all set: sending opens "Set up your models" with Save disabled, and the message stays in the composer. Set all three before a scripted first turn.
+- Verify: `GET /api/settings` shows `claudeCode.enabled` and `models.*` as intended.
 
 ## `npm ci` while `next dev` runs half-deletes `node_modules`
 - Symptom: `npm error EPERM ... unlink ... lightningcss.win32-x64-msvc.node`; afterwards `npx tsc` fetches the bogus `tsc@2.0.4` package because `node_modules/.bin/tsc` is gone.
@@ -106,4 +106,4 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Symptom: the installed app's `logs\main.log` shows `Failed to load external module shiki-<hash>: Cannot find package '@shikijs/core'`, while the dev server, `smoke-server` and `dist/win-unpacked` are all fine.
 - Cause: Next links each external package into `.next/node_modules/<name>-<hash>`. The installer ships those links as plain copies. `shiki` sits in a nested `node_modules` (`@streamdown/code/node_modules`) next to its dependencies, and a copy under `.next/node_modules` can't reach them. In the repo and in `win-unpacked` the links still resolve, so nothing there fails.
 - Avoid: step 2d in `scripts/build-server.mjs` (fork) copies such a nested folder's packages to `standalone/node_modules` and refuses the build on a version clash. Keep it through merges.
-- Verify: copy `.next/standalone` with links followed (`cp -rL`) to a folder outside the repo and run it there (recipe in `CLAUDE.md` § Desktop app); `/chat/new` returns 200 and the log has no `ERR_MODULE_NOT_FOUND`. A plain GET to the installed window's own server proves nothing: it rejects requests without its per-launch header.
+- Verify: copy `.next/standalone` with links followed (`cp -rL`) to a folder outside the repo and run it there (recipe in `CLAUDE.md` § Desktop app); `/chat/new` returns 200 and the log has no `ERR_MODULE_NOT_FOUND`. A plain GET to the installed window's own server proves nothing: it rejects requests without its per-launch header. Seen fixed 2026-11-18: the reinstalled 17:03 build launched with no `ERR_MODULE_NOT_FOUND`, and its server (run headless) rendered a shiki-highlighted Python block in a reply.
