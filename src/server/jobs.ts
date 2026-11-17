@@ -75,6 +75,7 @@ import { resolveConversationSpec } from "../core/settings-resolution.ts";
 import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
+import { parkedDismissalGeneration } from "./dismissal-park.ts";
 import type { Agent } from "@earendil-works/pi-agent-core";
 
 /** Fires one server-side teacher turn: (chatId, input) → HTTP-ish status.
@@ -313,6 +314,10 @@ export function registerLiveAgent(chatId: string, agent: Agent, allowDeferred = 
 export interface UserSteerEntry {
 	message: LhMessage;
 	handedTo?: Agent;
+	/** Set when this message was accepted while that dismissal was parked.
+	 *  Settlement uses it to deliver a message typed after Skip without
+	 *  also flushing a steer that was already waiting. */
+	parkedDismissalGeneration?: number;
 }
 
 /** Async composer admission keeps the live agent private. Future chat settings
@@ -342,13 +347,20 @@ export async function prepareAndSteerChat(chatId: string, input: UserSteerInput)
 export function steerLiveChat(chatId: string, message: LhMessage): boolean {
 	const agent = state().liveAgents.get(chatId);
 	if (!agent) return false;
-	const entry: UserSteerEntry = { message };
+	const generation = parkedDismissalGeneration(chatId);
+	const entry: UserSteerEntry = generation === null ? { message } : { message, parkedDismissalGeneration: generation };
 	const q = state().userSteers.get(chatId) ?? [];
 	q.push(entry);
 	state().userSteers.set(chatId, q);
 	agent.steer(message);
 	entry.handedTo = agent;
 	return true;
+}
+
+/** True when a composer message was accepted during this parked dismissal
+ *  and has not since been persisted. Earlier steers do not count. */
+export function hasPostSkipUserSteer(chatId: string, generation: number): boolean {
+	return (state().userSteers.get(chatId) ?? []).some((entry) => entry.parkedDismissalGeneration === generation);
 }
 
 /** TURN SETTLEMENT RECONCILIATION for user steers: delivered ids drop
