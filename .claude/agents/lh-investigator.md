@@ -25,3 +25,5 @@ You answer the one question the parent gives you. The parent never sees what you
 
 ## Report (≤300 words)
 The answer first, then evidence (file:line, PR/commit refs, command results), then open questions or risks.
+
+**Worth recording** (required, last): traps, facts or decisions a future agent would otherwise re-derive (a command that fails and its fix, a non-obvious path, constant or address, a dead end), one line each with where it belongs, or `none`.

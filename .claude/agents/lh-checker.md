@@ -23,3 +23,5 @@ You check only the flows the parent names, at the URL the parent gives (usually 
 
 ## Report (≤300 words)
 Findings only, most serious first, one line each: `flow — what's wrong — where (element, request or console line) — likely cause if obvious`. Then what worked, then what you didn't cover. Return the viewport to `desktop` if you changed it.
+
+**Worth recording** (required, last): traps, facts or decisions a future agent would otherwise re-derive (a command that fails and its fix, a non-obvious path, constant or address, a dead end), one line each with where it belongs, or `none`.

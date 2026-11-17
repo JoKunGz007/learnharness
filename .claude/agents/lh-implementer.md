@@ -28,3 +28,5 @@ You carry out one settled plan step for the parent. The parent and user have alr
 
 ## Report (≤250 words)
 Files changed, commands run with results, deviations from the plan, open questions or risks.
+
+**Worth recording** (required, last): traps, facts or decisions a future agent would otherwise re-derive (a command that fails and its fix, a non-obvious path, constant or address, a dead end), one line each with where it belongs, or `none`.

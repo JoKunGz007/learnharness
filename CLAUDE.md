@@ -60,6 +60,7 @@ This session plans, decides, talks to the user and integrates. Subagents do the 
 - ~20–40 tool calls per delegation; split bigger work. `SendMessage` for a follow-up to the same agent.
 - Inline: small edits, short commands, reading one known file, anything needing the user.
 - Subagents don't edit docs or commit; record findings here yourself.
+- Each subagent report ends with **Worth recording**. Put those items in the right doc (`GOTCHAS.md`, `notes/`, `DECISIONS.md` or this file) before the session ends; subagents don't edit docs.
 
 ## Continuity docs
 
