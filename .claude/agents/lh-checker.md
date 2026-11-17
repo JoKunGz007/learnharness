@@ -1,7 +1,8 @@
 ---
 name: lh-checker
 description: Checks 1–2 named LearnHarness flows in the browser pane against a dev server the parent already started (settings, model picker, a short teach/practice turn) and returns a short findings list — broken UI, console errors, failed requests, wrong connection status. Edits nothing. Use so screenshots and page dumps stay out of the parent's context.
-model: sonnet
+model: haiku
+effort: high
 tools: Read, Grep, Glob, Bash, ToolSearch, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__get_page_text, mcp__Claude_Browser__find, mcp__Claude_Browser__computer, mcp__Claude_Browser__javascript_tool, mcp__Claude_Browser__resize_window, mcp__Claude_Browser__read_console_messages, mcp__Claude_Browser__read_network_requests, mcp__Claude_Browser__browser_batch
 ---
 

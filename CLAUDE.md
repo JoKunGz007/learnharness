@@ -55,7 +55,7 @@ This session plans, decides, talks to the user and integrates. Subagents do the 
 
 - **Investigation → `lh-investigator`** (Opus, medium effort, read-only): upstream PRs/forks, code tracing, test/log output. One question per run, name the starting files or PR numbers.
 - **Settled edits → `lh-implementer`** (Sonnet, `maxTurns: 60`): name files, exact change, checks to run. Settle every user-visible choice first. Stuck or turned into debugging → re-route to the investigator, or re-run one model up with `[re-run]` / `[opus]` at the start of the description. Partial return at the cap: check `git diff` first.
-- **Browser checks → `lh-checker`** (Sonnet, edits nothing): name 1–2 flows and the URL of a server you started; a longer list is several runs, one after another (the 51–70-call runs each bundled more, claude-usage D-030). One run at a time (shared browser pane). Live Claude turns: Haiku, a stated turn count.
+- **Browser checks → `lh-checker`** (Haiku `effort: high`, trial, claude-usage D-033; edits nothing): name 1–2 flows and the URL of a server you started; a longer list is several runs, one after another (the 51–70-call runs each bundled more, claude-usage D-030). One run at a time (shared browser pane). Live Claude turns: Haiku, a stated turn count. If the report is vague or misses something, re-run it once on `model: "sonnet"` with `[re-run]` in the description.
 - **"Where is X" → built-in `Explore`.**
 - ~20–40 tool calls per delegation; split bigger work. `SendMessage` for a follow-up to the same agent.
 - Inline: small edits, short commands, reading one known file, anything needing the user.
