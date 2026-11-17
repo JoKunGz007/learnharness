@@ -73,6 +73,7 @@ const ABORT_MESSAGE = "Request was aborted";
 const START_FAILED_MESSAGE = "claude CLI failed to start";
 const NO_STOP_REASON_MESSAGE = "claude CLI ended the message without a stop reason";
 const NO_REPLY_MESSAGE = "Claude ended its turn without replying. Send your message again."; // Fork
+const BRIDGE_UNREACHABLE_MESSAGE = "Claude Code could not reach the LearnHarness tool bridge, so this turn was stopped before the tutor replied.";
 const NOT_SIGNED_IN_ERROR = "authentication_failed";
 
 /** Fork: undefined reasoning is "off" (pi-ai scale): no --effort, thinking disabled via MAX_THINKING_TOKENS=0 (toClaudeEnv). */
@@ -606,6 +607,13 @@ class ClaudeProcess implements LiveProcess {
 		if (this.awaitingResult) return; // Fork: the turn is done; stray events before `result` are not a "moved on" failure
 		const event = parseCliLine(line);
 		if (!event) return;
+		if (event.type === "init") {
+			const declared = this.bridge.allowedTools;
+			const bridgeConnected = event.mcpServers.some((server) => server.name === BRIDGE_SERVER_NAME && server.status === "connected");
+			// Without the bridge the model has no tools and types its calls as plain text.
+			if (declared.length > 0 && (!bridgeConnected || declared.some((name) => !event.tools.includes(name)))) this.fail(BRIDGE_UNREACHABLE_MESSAGE);
+			return;
+		}
 		if (event.type === "toolResults") {
 			if (event.ids.some((id) => this.sourceCalls.some((call) => call.id === id))) {
 				this.fail("claude CLI refused a harness tool call before MCP admission");
