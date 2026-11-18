@@ -69,13 +69,18 @@ export function parkedDismissalGeneration(chatId: string): number | null {
 	return state().entries.get(chatId)?.generation ?? null;
 }
 
-/** Take the chat's parked dismissal (removes it). Returns null when
- *  nothing is parked. */
-export function takeParkedDismissal(chatId: string): ParkedDismissal | null {
+/** Remove and return the chat's park (null when nothing is parked). */
+function takePark(chatId: string): StoredPark | null {
 	const parked = state().entries.get(chatId);
 	if (parked === undefined) return null;
 	state().entries.delete(chatId);
-	return parked.input;
+	return parked;
+}
+
+/** Take the chat's parked dismissal (removes it). Returns null when
+ *  nothing is parked. */
+export function takeParkedDismissal(chatId: string): ParkedDismissal | null {
+	return takePark(chatId)?.input ?? null;
 }
 
 /** Apply the chat's parked dismissal, if any, against the current record.
@@ -86,19 +91,20 @@ export function takeParkedDismissal(chatId: string): ParkedDismissal | null {
  *  is dropped, silence is the correct outcome. Emits "record-changed"
  *  exactly when something was written.
  *
- *  Returns which park landed. "question" is a skipped check (builtin or
+ *  Returns the park's kind and generation, with `applied` saying whether
+ *  anything was written. "question" is a skipped check (builtin or
  *  plugin). "problem" is a practice discard — its conclude pair still
- *  waits for the next explicit input. Null means nothing was written. */
+ *  waits for the next explicit input. Null means nothing was parked. */
 export function applyParkedDismissal(chatStore: ChatStore, chatId: string): AppliedDismissal | null {
-	const parked = state().entries.get(chatId);
-	if (parked === undefined) return null;
-	state().entries.delete(chatId);
+	const parked = takePark(chatId);
+	if (parked === null) return null;
 	const input = parked.input;
+	const kind = (input as { type?: string }).type === "dismiss-problem" ? "problem" : "question";
+	const result = { kind, generation: parked.generation } as const;
 	const record = chatStore.getChat(chatId);
-	if (!record) return null;
+	if (!record) return { ...result, applied: false };
 	try {
 		assertPluginQuestionInputAllowed(record.messages, input as { type: string });
-		const problem = (input as { type?: string }).type === "dismiss-problem";
 		const appends = (input as { type?: string }).type === "dismiss-plugin-question"
 			? preparePluginQuestionDismissal(record, input as PluginQuestionDismissInput)
 			: dismissAppends(record, input as Parameters<typeof dismissAppends>[1]);
@@ -106,9 +112,9 @@ export function applyParkedDismissal(chatStore: ChatStore, chatId: string): Appl
 		// side exchanges pending until that call's context-budget gate.
 		chatStore.saveMessages(chatId, [...record.messages, ...appends]);
 		emit("record-changed", { chatId });
-		return { kind: problem ? "problem" : "question", generation: parked.generation };
+		return { ...result, applied: true };
 	} catch (err) {
-		if (err instanceof ChatInputError) return null; // never materialized — drop
+		if (err instanceof ChatInputError) return { ...result, applied: false }; // never materialized — drop
 		throw err;
 	}
 }
@@ -116,4 +122,6 @@ export function applyParkedDismissal(chatStore: ChatStore, chatId: string): Appl
 export interface AppliedDismissal {
 	kind: "question" | "problem";
 	generation: number;
+	/** Fork: false when the park never materialized and nothing was written. */
+	applied: boolean;
 }

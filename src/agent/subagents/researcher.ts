@@ -1,5 +1,5 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Message, Usage } from "@earendil-works/pi-ai";
 import { createWebTools } from "../tools/web.ts";
 import { createPdfReadTools } from "../tools/pdf-read.ts";
 import type { SearchProvider } from "../../core/search.ts";
@@ -73,10 +73,44 @@ const FINALIZE = "The research phase has ended and no further tools are availabl
 	"and state any unanswered questions or failed searches in Gaps. If no sources could be verified, " +
 	"say so explicitly. Do not invent findings or citations. Return the complete brief as text in the required format.";
 
-function hasCompletedBrief(result: SubagentRunResult): boolean {
+const TRUNCATION_NOTE = "\n\n[Brief truncated at the output limit.]";
+
+/** The finished brief text, or null when the run did not end in one. Fork: a
+ *  non-empty brief cut off at the output limit is returned with a note
+ *  instead of discarding the research. */
+function completedBrief(result: SubagentRunResult): string | null {
 	const last = result.newMessages.findLast((message): message is AssistantMessage => message.role === "assistant");
-	return Boolean(result.text.trim()) && last?.stopReason === "stop" &&
-		!last.content.some((block) => block.type === "toolCall");
+	const text = result.text.trim();
+	if (!text || !last || last.content.some((block) => block.type === "toolCall")) return null;
+	if (last.stopReason === "stop") return result.text;
+	if (last.stopReason === "length") return result.text + TRUNCATION_NOTE;
+	return null;
+}
+
+/** Fork: the synthesis call declares no tools, and the Anthropic API rejects
+ *  tool_use/tool_result blocks without a tools list. Flatten the research
+ *  history to plain text (tool calls and results become labelled text;
+ *  thinking is dropped) so the closing call carries no tool blocks. */
+function flattenToolHistory(messages: Message[]): Message[] {
+	const out: Message[] = [];
+	for (const message of messages) {
+		if (message.role === "assistant") {
+			const content = message.content.flatMap((block) => {
+				if (block.type === "text") return block.text.trim() ? [{ type: "text" as const, text: block.text }] : [];
+				if (block.type === "toolCall") return [{ type: "text" as const, text: `[tool call ${block.name}] ${JSON.stringify(block.arguments)}` }];
+				return [];
+			});
+			if (content.length > 0) out.push({ ...message, content, stopReason: message.stopReason === "toolUse" ? "stop" : message.stopReason });
+		} else if (message.role === "toolResult") {
+			const text = message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");
+			out.push({
+				role: "user",
+				content: `[tool result ${message.toolName}${message.isError ? " error" : ""}]\n${text}`,
+				timestamp: message.timestamp,
+			});
+		} else out.push(message);
+	}
+	return out;
 }
 
 export interface ResearcherRunOptions {
@@ -118,18 +152,20 @@ export async function runResearcherAgent(prompt: string, opts: ResearcherRunOpti
 	};
 	// Reserve the twelfth call for synthesis instead of ending on a tool result.
 	const research = await runSubagent(tools, { ...shared, prompt, maxTurns: 11 });
-	if (hasCompletedBrief(research)) return research.text;
+	const early = completedBrief(research);
+	if (early !== null) return early;
 	if (opts.abortSignal?.aborted) throw new DOMException("aborted", "AbortError");
 	const final = await runSubagent([], {
 		...shared,
 		maxTurns: 1,
 		messages: [
-			...research.newMessages,
+			...flattenToolHistory(research.newMessages as Message[]),
 			{ role: "user", content: FINALIZE, timestamp: Date.now() },
 		],
 	});
-	if (!hasCompletedBrief(final)) throw new Error("the researcher did not produce a complete final brief");
-	return final.text;
+	const brief = completedBrief(final);
+	if (brief === null) throw new Error("the researcher did not produce a complete final brief");
+	return brief;
 }
 
 export type ResearcherAgent = ReturnType<typeof runResearcherAgent>;

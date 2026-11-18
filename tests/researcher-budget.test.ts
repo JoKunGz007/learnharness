@@ -113,7 +113,6 @@ describe("researcher budget finalization", () => {
 
 	for (const initial of [
 		{ label: "empty", message: fauxAssistantMessage("") },
-		{ label: "truncated", message: fauxAssistantMessage("Partial findings", { stopReason: "length" }) },
 	]) {
 		it(`finishes a research response that is ${initial.label} with one bounded closing call`, async () => {
 			const { engine, requests } = scriptedEngine([initial.message, fauxAssistantMessage(BRIEF)]);
@@ -125,7 +124,6 @@ describe("researcher budget finalization", () => {
 
 	for (const final of [
 		{ label: "empty", message: fauxAssistantMessage("") },
-		{ label: "truncated", message: fauxAssistantMessage("Unfinished brief", { stopReason: "length" }) },
 		{ label: "tool-calling", message: fauxAssistantMessage([fauxText("Interim text"), fauxToolCall("web_search", { query: "one more" })], { stopReason: "toolUse" }) },
 	]) {
 		it(`rejects a closing response that is ${final.label} without another attempt`, async () => {
@@ -136,6 +134,35 @@ describe("researcher budget finalization", () => {
 			assert.equal(search.queries.length, 11, "an undeclared closing tool is never executed");
 		});
 	}
+
+	it("Fork: returns a truncated research brief with a note instead of a closing call", async () => {
+		const { engine, requests } = scriptedEngine([fauxAssistantMessage("Partial findings", { stopReason: "length" }), fauxAssistantMessage("Unexpected closing call")]);
+		assert.equal(await runResearcherAgent(QUESTION, { engine }), "Partial findings" + "\n\n[Brief truncated at the output limit.]");
+		assert.equal(requests.length, 1);
+	});
+
+	it("Fork: returns a truncated closing brief with a note", async () => {
+		const { engine, requests } = scriptedEngine([...researchTurns(), fauxAssistantMessage("Unfinished brief", { stopReason: "length" })]);
+		const search = recordingSearch();
+		assert.equal(await runResearcherAgent(QUESTION, { engine, search: () => search.provider }), "Unfinished brief" + "\n\n[Brief truncated at the output limit.]");
+		assert.equal(requests.length, 12);
+	});
+
+	it("Fork: still rejects a truncated closing response with no text", async () => {
+		const { engine } = scriptedEngine([...researchTurns(), fauxAssistantMessage("", { stopReason: "length" })]);
+		const search = recordingSearch();
+		await assert.rejects(runResearcherAgent(QUESTION, { engine, search: () => search.provider }));
+	});
+
+	it("Fork: the closing call carries no tool_use/tool_result blocks and no thinking", async () => {
+		const { engine, requests } = scriptedEngine([...researchTurns(true), fauxAssistantMessage(BRIEF)]);
+		const search = recordingSearch();
+		await runResearcherAgent(QUESTION, { engine, search: () => search.provider });
+		const final = requests.at(-1)!;
+		assert.doesNotMatch(final.transcript, /"type":"toolCall"|"role":"toolResult"|"type":"thinking"/);
+		assert.match(final.transcript, /\[tool call web_search\]/);
+		assert.match(final.transcript, /evidence:query-11/);
+	});
 
 	it("propagates a provider failure during research without dispatching a closing call", async () => {
 		const { engine, requests } = scriptedEngine([

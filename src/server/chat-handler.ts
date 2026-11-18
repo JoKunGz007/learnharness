@@ -913,8 +913,10 @@ export async function handleChatInput(
 				reconcileUserSteers(chatId, stamped);
 				// A skip still waits when the learner has not spoken. A message
 				// accepted during THIS park is that next message: continue once,
-				// and the parked copy rides the new run's start poll. A steer
-				// from before the skip stays parked until an explicit send.
+				// and the parked copy rides the new run's start poll. This holds
+				// even when the park wrote nothing (the question never
+				// materialized). A steer from before the skip alone does not
+				// trigger the continue; if one fires, every parked steer rides it.
 				// Practice discards are not included; their conclude pair is
 				// still attached by the next explicit input.
 				if (appliedDismissal?.kind === "question" && hasPostSkipUserSteer(chatId, appliedDismissal.generation)) {

@@ -1757,6 +1757,33 @@ describe("composer steering: POST /api/chats/[id]/steer", () => {
 		assert.match(prompt, /tell me about Mars/);
 		assert.equal(isTurnRunning(earlier.chatId), false);
 	});
+
+	it("Fork: delivers a post-skip steer even when the parked skip never materialized", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => { release = resolve; });
+		const calls: string[][] = [];
+		const faux = createFauxCore({});
+		const rec = (context: { messages: unknown[] }) => calls.push(context.messages.map((m) => JSON.stringify((m as { content: unknown }).content)));
+		faux.setResponses([
+			async (context: { messages: unknown[] }) => { rec(context); await gate; return fauxAssistantMessage([fauxText("No question after all.")]); },
+			(context: { messages: unknown[] }) => { rec(context); return fauxAssistantMessage([fauxText("Mars it is.")]); },
+		]);
+		const chat = createConfiguredChat("Test: skip for a question that never persists");
+		createdChats.push(chat.id);
+		const ack = await handleChatRequest(post(chat.id, { type: "text", text: "teach me the solar system" }), agentFactory({ model: faux.getModel(), streamFn: faux.streamSimple }));
+		assert.equal(ack.status, 200);
+		await ack.text();
+		await waitFor(() => calls.length === 1, 8000, "the turn reached its model call");
+		const firstTurn = drainRunning(chat.id);
+		assert.equal((await dismissPost(chat.id, "call-1")).status, 202, "the skip is parked while the turn is live");
+		assert.equal((await steerPost(chat.id, { input: { type: "steer", id: "steer_after_ghost_skip", text: "tell me about Mars" } })).status, 200);
+
+		release();
+		await firstTurn;
+		await waitFor(() => calls.length === 2 && !isTurnRunning(chat.id), 8000, "the post-skip message to reach the tutor");
+		assert.match(calls[1]!.join("\n"), /tell me about Mars/, "the tutor saw the message");
+		assert.equal(chatStore.getChat(chat.id)!.messages.filter((m) => m.id === "steer_after_ghost_skip").length, 1, "persisted once");
+	});
 });
 
 // ─── THE LACAN INCIDENT: per-response tool-call ids (owner fix 2026-10-04) ──
