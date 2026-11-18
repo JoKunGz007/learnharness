@@ -11,6 +11,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## Windows-only test failures
 - Symptom: the full suite gives 15 failures (2026-11-08, v0.5.0 merge; 14 before it). The 15th: `learner-image-snapshots.test.ts` "uses the shared sensitive-path guard…" (`no such file` instead of `Access denied` for an alias path). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
 - 2026-11-14, v0.6.1 merge: 28 failures. New on top of the 15: `appearance-chrome` (1) and `desktop-platform` (1) path separators; `code-ligatures` (1), `plugin-api-reference` (1) and probably `themes` (1) CRLF; `session-identity` (4) `mkdtemp` under an undefined home; `plugin-install-local` (1) quoting; `safe-fetch-connector` (2) and `plugin-authoring-bundle` (1) not traced. None is in a file the fork modifies; this set was not run on plain upstream v0.6.1. `custom-provider-restart` (2) timed out in one of two runs.
+- 2026-11-18, after the triage ports: 31 failures; 28 also fail at `506ada3c` (baseline worktree). The CRLF ones (`code-ligatures`, `themes`, `plugin-api-reference`, `plugin-authoring-bundle`) are traced: system git has `core.autocrlf=true`, so exact-text compares against committed files fail; the generated reference is current once line endings are normalised, so "regenerate" is a false alarm. `session-identity` (4): the wiped env makes `tmpdir()` return `undefined\temp`. Full-suite-only flakes (pass alone): `jobs` "a running record with a LIVE loop registration…" and `custom-provider-restart` (`spawnSync` ETIMEDOUT).
 - Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. All 15 also fail on plain upstream v0.5.0 (2026-11-08 run in a temp worktree).
 - Avoid: don't chase them unless that code changes. Run the full suite with quoted globs, `NODE_ENV=test npx tsx --test "tests/*.test.ts" "tests/*.test.tsx"`: unquoted, Git Bash expands them past Windows' command-line limit (`The command line is too long`). Don't edit source while it runs; a test file that loads the edited module mid-run fails for that reason.
 - Verify: same failures on `main` before and after a change.
@@ -120,3 +121,31 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - `grep -r` from the repo root times out on `node_modules`: scope it to `src`, `app`, `components`, `plugins`.
 - Upstream #760 ("`tex.wasm` missing") is a false alarm for us: rich-code-blocks ships `tex.wasm.gz` by design, present in `dist/win-unpacked` and the installed app (2026-11-18).
 - Parallel subagents writing `.tmp/out.log` overwrite each other: give each its own file.
+- `gh pr view N --comments` fails the same way: use `--json body,comments --jq …`.
+- `git apply --3way` stages what it applies (only conflicted files stay unstaged) and refuses a file with working-tree edits ("does not match index"): commit or apply that file separately (`--include`, `--reject` + hand-merge the `.rej`).
+- The Bash tool turns `\n` inside heredocs and inline scripts into real newlines, and mangles regex backslashes: edit TS with the Edit tool.
+- Bugs about tool blocks sent with no tools list (e.g. #532's closing call) hit only API engines: the `claude-code` engine replays history as labelled text (`src/agent/claude-code/transcript.ts`), never as tool blocks.
+- Upstream CI runs only the root `tests/*` on Ubuntu; `plugins/*/tests` and the Windows unit tests never run there, so Windows-only plugin test failures don't show upstream. Plugin tests: `cd plugins/<name> && npm test`. Skill tests: `python -B -m unittest discover -s tests/skills` (no pytest).
+
+## esbuild test mocks don't load on Windows
+- Symptom: drawing-pad tests fail with `document is not defined` or `reading 'contains'` in `appPalette`: the real module ran instead of the test's mock.
+- Cause: esbuild `onLoad` filters like `/\/src\/sheet\.ts$/` never match, because on Windows `args.path` uses backslashes.
+- Avoid: write path separators in such filters as `[\\/]` (fork fix `0a3434b2`); check new upstream plugin tests for the same pattern.
+- Verify: `cd plugins/drawing-pad && npm test` passes 104/104.
+
+## Tests that open `node:sqlite` databases can't clean up on Windows
+- Symptom: a test file fails in its `after()` hook with `EPERM` from `rmSync` on a temp dir, though every test passed.
+- Cause: a `DatabaseSync` left open keeps the file locked; Windows won't delete it.
+- Avoid: track opened databases and `close()` them before `rmSync` (`tests/anki-export.test.ts`, `501fcba3`).
+- Verify: the file passes alone with no hook failure.
+
+## The bridge can be "pending" at the CLI's init line
+- Symptom: a turn fails with "Claude Code could not reach the LearnHarness tool bridge" although the bridge works.
+- Cause: from Claude Code 2.1.326 MCP servers connect without blocking (`MCP_CONNECTION_NONBLOCKING` defaults on); `-p` waits for them only up to a deadline, so `system/init` can report the server as `"pending"` with its tools not yet listed.
+- Avoid: the init check (`src/agent/claude-code/stream.ts`, D-016) treats `pending` as OK and fails only on a missing server, a status other than connected/pending, or a connected server missing a declared tool.
+- Verify: `tests/claude-code-stream.test.ts` "Fork: a pending bridge with no tools yet proceeds". To inspect the CLI: `grep -a -o` on `%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`.
+
+## Browser-pane checks: clipboard and live side-thread prompts
+- Clipboard `readText` is denied in the pane and native Ctrl+C fires no copy event: wrap `navigator.clipboard.writeText` (and `DataTransfer.prototype.setData` for selection copies) before clicking, or dispatch `new ClipboardEvent('copy', {clipboardData: dt})`.
+- Open chats at `/chat/<id>` (`?chat=` does nothing). `GET /api/chats/<id>/side-chats` lists side threads.
+- A live prompt with no topic ("reply with a mermaid diagram") gets a clarifying question from Haiku: give it a subject.
