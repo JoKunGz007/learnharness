@@ -233,8 +233,13 @@ function openCollection(zip: Map<string, Buffer>): DatabaseSync {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lh-anki-read-"));
 	scratchDirs.push(dir);
 	fs.writeFileSync(path.join(dir, "collection.anki2"), zip.get("collection.anki2")!);
-	return new DatabaseSync(path.join(dir, "collection.anki2"));
+	const db = new DatabaseSync(path.join(dir, "collection.anki2"));
+	openDbs.push(db);
+	return db;
 }
+
+// Fork: Windows cannot delete a file that is still open, so cleanup closes these first.
+const openDbs: DatabaseSync[] = [];
 
 interface NoteRow {
 	id: number;
@@ -466,6 +471,7 @@ describe("GET /api/chats/:id/anki", () => {
 });
 
 after(() => {
+	for (const db of openDbs) if (db.isOpen) db.close();
 	for (const dir of scratchDirs) fs.rmSync(dir, { recursive: true, force: true });
 	fs.rmSync(TMP_DATA, { recursive: true, force: true });
 });
