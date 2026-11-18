@@ -64,8 +64,10 @@ This session plans, decides, talks to the user and integrates. Subagents do the 
 
 ## Continuity docs
 
-Start at `PLAN.md` § Current checkpoint, then `DECISIONS.md` / `GOTCHAS.md` as the task needs. Each fact has one home; link, don't copy. No `HANDOFF.md`: session handoffs are `/handoff` notes in the temp folder. After substantive work, run `/sync-continuity`. (Upstream's `docs/plan.md` is the maintainer's, not ours.)
+Start at `PLAN.md` § Current checkpoint, then `DECISIONS.md` / `GOTCHAS.md` as the task needs. Each fact has one home; link, don't copy. No `HANDOFF.md`: session handoffs are `/handoff` notes in `~/.claude/handoffs/`. After substantive work, run `/sync-docs`. (Upstream's `docs/plan.md` is the maintainer's, not ours.)
 
 ## Owner
 
 CEDT student (Chulalongkorn), Windows 11, GitHub JoKunGz007. Wants concise, arithmetic-first answers, no lecturing. Separate from the coursework repo `D:\Projects\cedt` — never touch it from here.
+
+Handoff: push without asking. `/handoff` pushes this branch to its upstream after the docs commit.
