@@ -127,7 +127,7 @@ export function SideThreadBody({ state, chatId, draft, readDraft, dictation, onD
 				</Button>
 				<Button type="button" size="icon-xs" variant="ghost" aria-label="Close side conversation" title="Close" onClick={onClose}><X aria-hidden="true" /></Button>
 			</div>
-			<div ref={scrollRef} data-side-scroll="" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto font-prose">
+			<div ref={scrollRef} data-side-scroll="" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto font-prose [container-type:inline-size]">
 				{state.messages.map((message) => (
 					<div key={message.id} data-testid={message.role === "user" ? "side-learner-message" : "side-helper-message"} className={message.role === "user" ? "ml-auto flex w-fit max-w-[70%] flex-col gap-1.5 rounded-xl bg-muted px-3 py-2 text-sm [overflow-wrap:anywhere]" : "flex flex-col gap-1.5 text-sm"}>
 						{message.quotes?.map((quote, index) => <Passage key={index} text={quote} citation={collectCitations(message.quoteCitations?.[index] ?? "")[0]?.citation} />)}
