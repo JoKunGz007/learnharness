@@ -64,6 +64,15 @@ describe("AuthStore adapter", () => {
 		assert.deepEqual(authStore.authVars(), { OK: "fine" }, "non-string values drop");
 	});
 
+	it("set/delete on a corrupt file throw and leave it unchanged (no wipe)", () => {
+		for (const bad of ["{not json", JSON.stringify(["an", "array"])]) {
+			fs.writeFileSync(AUTH_FILE, bad);
+			assert.throws(() => authStore.setAuthVar("X", "1"), /Authorization storage unavailable/);
+			assert.throws(() => authStore.deleteAuthVar("X"), /Authorization storage unavailable/);
+			assert.equal(fs.readFileSync(AUTH_FILE, "utf8"), bad);
+		}
+	});
+
 	it("delete removes just that var; absent delete = silent no-op", () => {
 		fs.writeFileSync(AUTH_FILE, JSON.stringify({ A: "1", B: "2" }));
 		authStore.deleteAuthVar("A");

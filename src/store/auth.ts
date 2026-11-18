@@ -51,19 +51,29 @@ export const authStore: AuthStore = {
 	},
 	setAuthVar(name, value) {
 		assertOrdinaryVar(name);
-		const map = readMap();
+		const map = readStoredMap();
 		map[name] = value;
 		writeMap(map);
 	},
 	deleteAuthVar(name) {
 		assertOrdinaryVar(name);
-		const map = readMap();
+		const map = readStoredMap();
 		if (!(name in map)) return; // absent = silent success, idempotent
 		delete map[name];
 		writeMap(map);
 	},
 };
 
+/** Fork: set/delete must never turn an unreadable/corrupt file into {} (the next save would wipe every key). Missing file = {}. */
+function readStoredMap(): Record<string, unknown> {
+	let text: string;
+	try { text = fs.readFileSync(AUTH_FILE, "utf8"); }
+	catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}; throw new Error("Authorization storage unavailable"); }
+	let raw: unknown;
+	try { raw = JSON.parse(text); } catch { throw new Error("Authorization storage unavailable"); }
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Authorization storage unavailable");
+	return raw as Record<string, unknown>;
+}
 /** Custom writes must never turn an unreadable/corrupt private file into {}.
  * Other providers retain their existing adapter semantics. Unknown JSON values
  * survive custom-only updates, not just the ordinary string projection. */
