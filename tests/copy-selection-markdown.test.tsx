@@ -381,7 +381,7 @@ describe("selectionToMarkdown & handleCopyAsMarkdown", () => {
 			assert.equal(listeners.length, 1);
 
 			const p = document.querySelector(".lh-prose p")!;
-			const range = createFakeRange(p.firstChild!, 0, p.lastChild!, (p.lastChild as Text).data.length);
+			const range = createFakeRange(p.firstChild!, 0, p, p.childNodes.length);
 			(document as unknown as { getSelection: () => Selection }).getSelection = () =>
 				({ isCollapsed: false, rangeCount: 1, getRangeAt: () => range }) as unknown as Selection;
 

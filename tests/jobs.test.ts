@@ -1498,8 +1498,8 @@ describe("prompt composition", () => {
 		const prober = composeInstructions("prober");
 		assert.ok(!prober.includes("There is no rush"), "the old no-rush framing is retired");
 		assert.ok(
-			prober.includes("every wasted question is resolution the final map doesn't get"),
-			"the efficiency-is-resolution directive is in",
+			prober.includes("for the time and effort they spend answering"),
+			"the probe optimizes evidence for the learner's answering effort",
 		);
 		assert.ok(!prober.includes("Question principles"), "the teach-phase fragment never composes into the prober");
 	});
@@ -1678,9 +1678,9 @@ describe("abort (src/server/jobs.ts abortJob)", () => {
 			// model slots wave: the stamp is the ENGINE's actual model,
 			// provider-qualified — the scripted faux engine here.
 			assert.equal(job.usage!.model, "faux:faux-1");
-			// faux estimates tokens from the prompt/response text — the
-			// pinned fact is that the ONE completed step's spend survived.
-			assert.ok(job.usage!.inputTokens! > 0, "input tokens billed");
+			// This is a fresh faux session; its prompt can be entirely cache writes.
+			assert.ok((job.usage!.inputTokens ?? 0) + (job.usage!.cacheWriteTokens ?? 0) > 0, "the completed step's prompt usage survived");
+			assert.ok(job.usage!.cacheWriteTokens! > 0, "cache writes survived");
 			assert.ok(job.usage!.outputTokens! > 0, "output tokens billed");
 		} finally {
 			researchModelOverride.current = undefined;

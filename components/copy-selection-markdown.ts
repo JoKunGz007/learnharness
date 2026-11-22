@@ -55,7 +55,8 @@ function isInlineMathNode(el: Element): boolean {
 }
 
 function extractTex(el: Element): string | null {
-	const raw = el.querySelector(TEX_ANNOTATION_SELECTOR)?.textContent ?? "";
+	// Fork: upstream 0.7 renders KaTeX as HTML only, with the source in data-tex; the annotation is the old path.
+	const raw = el.getAttribute("data-tex") ?? el.querySelector(".katex[data-tex]")?.getAttribute("data-tex") ?? el.querySelector(TEX_ANNOTATION_SELECTOR)?.textContent ?? "";
 	const trimmed = raw.trim();
 	return trimmed.length > 0 ? trimmed : null;
 }

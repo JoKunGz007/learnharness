@@ -368,12 +368,12 @@ function withClaudeInstalled(installed: boolean, fn: () => void, enabled = true)
 }
 
 describe("the claude-code provider (native CLI authentication, no LearnHarness key)", () => {
-	it("modelCatalog() lists claude-code opus/sonnet/haiku when the CLI is installed", () => {
+	it("modelCatalog() lists claude-code opus/sonnet/haiku/fable when the CLI is installed", () => {
 		withClaudeInstalled(true, () => {
 			const ids = modelCatalog()
 				.models.filter((m) => m.provider === "claude-code")
 				.map((m) => m.id);
-			for (const id of ["claude-haiku-5-5", "claude-opus-5-5", "claude-sonnet-5-5"]) assert(ids.includes(id), id); // Fork: pinned ids
+			for (const id of ["claude-haiku-5-5", "claude-opus-5-5", "claude-sonnet-5-5", "fable"]) assert(ids.includes(id), id); // Fork: pinned ids
 		});
 	});
 

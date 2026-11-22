@@ -19,10 +19,10 @@ function createCollection() {
 }
 
 // Fork: pinned ids (pi-ai's Anthropic catalog minus dated snapshots), not aliases.
-test("lists pinned claude-* ids, including the 5-5 generation, and no aliases or dated snapshots", () => {
+test("lists pinned claude-* ids, including the 5-5 generation, plus the upstream fable alias, and no other aliases or dated snapshots", () => {
 	const ids = createCollection().getModels(CLAUDE_CODE_PROVIDER).map((m) => m.id);
 	for (const id of ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]) assert(ids.includes(id), id);
-	assert(ids.every((id) => id.startsWith("claude-") && !/-\d{8}$/.test(id)));
+	assert(ids.every((id) => id === "fable" || id.startsWith("claude-") && !/-\d{8}$/.test(id)));
 });
 
 test("supports off, low through max thinking; minimal clamps to low", () => {

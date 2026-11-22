@@ -18,11 +18,12 @@ const SHARED_MODEL_FIELDS = {
 	maxTokens: 128_000,
 } satisfies Omit<Model<Api>, "id" | "name">;
 
-// Fork: pinned ids instead of the opus/sonnet/haiku aliases, so saved `claude-code:claude-*-5-5`
-// settings keep working. Same list the old local provider offered: pi-ai's Anthropic catalog minus dated snapshots.
-export const CLAUDE_CODE_MODELS: readonly Model<Api>[] = (builtinProviders().find((provider) => provider.id === "anthropic")?.getModels() ?? [])
-	.filter((model) => !/-\d{8}$/.test(model.id))
-	.map((model) => ({ ...SHARED_MODEL_FIELDS, id: model.id, name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens }));
+// Fork: pinned ids instead of the opus/sonnet/haiku aliases, so saved `claude-code:claude-*-5-5`
+// settings keep working. Same list the old local provider offered: pi-ai's Anthropic catalog minus dated snapshots.
+export const CLAUDE_CODE_MODELS: readonly Model<Api>[] = (builtinProviders().find((provider) => provider.id === "anthropic")?.getModels() ?? [])
+	.filter((model) => !/-\d{8}$/.test(model.id))
+	.map((model) => ({ ...SHARED_MODEL_FIELDS, id: model.id, name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens }))
+	.concat([{ ...SHARED_MODEL_FIELDS, id: "fable", name: "Claude Fable" }]);
 
 export function createClaudeCodeProvider(streamSimple: StreamFunction<Api, SimpleStreamOptions>): Provider {
 	return createProvider({
