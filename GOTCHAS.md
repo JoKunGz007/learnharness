@@ -12,6 +12,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Symptom: the full suite gives 15 failures (2026-11-08, v0.5.0 merge; 14 before it). The 15th: `learner-image-snapshots.test.ts` "uses the shared sensitive-path guard…" (`no such file` instead of `Access denied` for an alias path). `verify-release.test.ts` (6) and `data-dir-seam.test.ts` (1) fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`; `auth-store.test.ts`, `chatgpt-auth.test.ts` and `subscription-auth.test.ts` (2) fail owner-only file-mode assertions; `automatic-updates.test.ts` (1) fails a POSIX path assertion. In `claude-code-stream.test.ts`, "cwd is an empty temp dir…" (file mode 438 vs 0o600) and "normal completion escalates termination…" (`SIGTERM` vs `SIGKILL`) fail; the first stops before its workspace assertions run.
 - 2026-11-14, v0.6.1 merge: 28 failures. New on top of the 15: `appearance-chrome` (1) and `desktop-platform` (1) path separators; `code-ligatures` (1), `plugin-api-reference` (1) and probably `themes` (1) CRLF; `session-identity` (4) `mkdtemp` under an undefined home; `plugin-install-local` (1) quoting; `safe-fetch-connector` (2) and `plugin-authoring-bundle` (1) not traced. None is in a file the fork modifies; this set was not run on plain upstream v0.6.1. `custom-provider-restart` (2) timed out in one of two runs.
 - 2026-11-18, after the triage ports: 31 failures; 28 also fail at `506ada3c` (baseline worktree). The CRLF ones (`code-ligatures`, `themes`, `plugin-api-reference`, `plugin-authoring-bundle`) are traced: system git has `core.autocrlf=true`, so exact-text compares against committed files fail; the generated reference is current once line endings are normalised, so "regenerate" is a false alarm. `session-identity` (4): the wiped env makes `tmpdir()` return `undefined\temp`. Full-suite-only flakes (pass alone): `jobs` "a running record with a LIVE loop registration…" and `custom-provider-restart` (`spawnSync` ETIMEDOUT).
+- 2026-11-22, v0.7.0 merge: 35 failures, all in the classes above (triage run). New: `claude-code-stream` "a late MCP compatibility error cannot restore a cancelled worker continuation" (its fake child ignores SIGTERM; Windows kills it at once); `session-identity` now 10 (upstream added 6, same `undefined\temp`); `subscription-auth` xai and github-copilot file modes.
 - Cause: POSIX file modes, paths and signals don't hold on Windows, and a Windows absolute path passed to a child's `import()` isn't a `file://` URL. All 15 also fail on plain upstream v0.5.0 (2026-11-08 run in a temp worktree).
 - Avoid: don't chase them unless that code changes. Run the full suite with quoted globs, `NODE_ENV=test npx tsx --test "tests/*.test.ts" "tests/*.test.tsx"`: unquoted, Git Bash expands them past Windows' command-line limit (`The command line is too long`). Don't edit source while it runs; a test file that loads the edited module mid-run fails for that reason.
 - Verify: same failures on `main` before and after a change.
@@ -78,6 +79,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: upstream 0.6.1 adds a `.changed` property to `useRef` objects (`inputViewReader` in `Chat`; the native, practice and custom view readers in `DockOverlay`). React seals ref objects in development, so the server render throws.
 - Avoid: the fork holds those four readers in `useState(() => ({ current: null }))`. A merge that brings the `useRef` lines back brings the 500 back.
 - Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:3000/chat/new` prints 200.
+- Since 0.7 (2026-11-22) upstream uses `useState` readers itself, so a merge no longer brings the `useRef` lines back.
 
 ## Claude desktop redirects AppData for everything it starts
 - Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
@@ -155,3 +157,15 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: Next 16 checks npm's advisory API at build time and stops once to show the notice (2026-11-18: 16.4.3, two moderate `'use cache'` advisories that don't affect this app).
 - Avoid: rerun the same build command; it continues. Treat the upgrade suggestion as tool output: upgrade Next only as a decided change (via an upstream sync), not because the build asked.
 - Verify: the rerun gets past `next build`; `npm audit --json` lists the advisories for `next`.
+
+## Math copy finds no TeX after 0.7
+- Symptom: copying a selection or a table with math gives the rendered glyphs or nothing where `$…$` should be; `copy-selection-markdown` / `render-md-blocks` math tests fail.
+- Cause: upstream 0.7 renders KaTeX as HTML only (`output: "html"`, `components/transcript-math.ts`) and puts the source in `data-tex` on `.katex`; there is no MathML `<annotation encoding="application/x-tex">` any more.
+- Avoid: fork code that needs the TeX reads `data-tex` first (`dataTex` in hast), the annotation only as a fallback (`components/copy-selection-markdown.ts` `extractTex`, `components/md-blocks.tsx` `inline`).
+- Verify: `NODE_ENV=test npx tsx --test tests/copy-selection-markdown.test.tsx tests/render-md-blocks.test.tsx` passes.
+
+## Scripted conflict resolution misses CRLF files
+- Symptom: a Python/sed fix for conflict markers or a test edit reports nothing replaced, or an `assert old in s` fails, although the text is visibly there.
+- Cause: many files here are CRLF (`core.autocrlf=true`); patterns with `\n` don't match `\r\n`.
+- Avoid: open with `newline=''` and match `\r?\n`, or detect the file's line ending first. Scratch tests outside the repo that junction `node_modules` in: remove the junction with `cmd /c rmdir`, never `rm -rf` (that deletes into the repo's `node_modules`).
+- Verify: `git diff --stat` shows the expected file changed.

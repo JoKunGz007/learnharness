@@ -11,7 +11,7 @@ Goal of the fork: run it on the owner's **Claude subscription** (Claude Code log
 ## Remotes and branches
 
 - `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private).
-- This branch = upstream 0.6.1 (merged 2026-11-14, D-014) + upstream PRs #163, #139, #127, and #532, #650, #666, #689 (ported 2026-11-18; all still open upstream; #157 is now upstream's own) + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
+- This branch = upstream 0.7.0 (merged 2026-11-22, D-017) + upstream PRs #163, #139, #127, #532, #650, #666, #689 and the D-016 triage set (all still open upstream except #772, now upstream's own, as is #157) + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
 - AGPL: if this is ever offered to others over a network, the source must be offered too. Personal use: no obligation.
 
 ## Claude subscription backend (upstream's provider + fork patches)
@@ -33,7 +33,7 @@ Then Settings → Providers → External CLI → **Claude Code** → enable, and
 
 - `npm test` uses POSIX env syntax; from Git Bash run `NODE_ENV=test npx tsx --test tests/<file>.test.ts`. Typecheck: `npx tsc --noEmit`.
 - Known Windows test failures: POSIX file-mode and signal assertions (`GOTCHAS.md`).
-- App data: `data/` (gitignored). Long command output → `.tmp/out.log` (gitignored), then grep/tail.
+- App data: `data/` (gitignored). Long command output → `.tmp/<task>.log` (gitignored; one name per agent, parallel agents overwrite a shared `out.log`), then grep/tail.
 
 ## Desktop app (Windows installer)
 
