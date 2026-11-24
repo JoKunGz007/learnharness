@@ -240,7 +240,8 @@ test('mcpConfig is {"mcpServers":{"learnharness":{"type":"http","url":...,"heade
 	assert.deepEqual(Object.keys(config.mcpServers), ["learnharness"]);
 
 	const server = getServerConfig(bridge);
-	assert.deepEqual(Object.keys(server).sort(), ["headers", "type", "url"]);
+	assert.deepEqual(Object.keys(server).sort(), ["alwaysLoad", "headers", "type", "url"]);
+	assert.equal((server as { alwaysLoad?: unknown }).alwaysLoad, true);
 	assert.equal(server.type, "http");
 	assert.match(server.url, /^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
 	assert.match(server.headers.Authorization, /^Bearer [0-9a-f]{64}$/);

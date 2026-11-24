@@ -19,7 +19,7 @@ export type CliEvent =
 	| { type: "assistantError"; error: string; text: string }
 	| { type: "resultError"; text: string }
 	| { type: "resultSuccess" }
-	| { type: "toolResults"; ids: string[] }
+	| { type: "toolResults"; ids: string[]; texts: string[] }
 	| { type: "init"; tools: string[]; mcpServers: { name: string; status: string }[] };
 
 type RawUsage = {
@@ -53,7 +53,7 @@ type RawCliLine = {
 	type?: string;
 	event?: RawStreamEvent;
 	error?: string | null;
-	message?: { content?: { type: string; text?: string; tool_use_id?: string }[] };
+	message?: { content?: { type: string; text?: string; tool_use_id?: string; content?: unknown }[] };
 	is_error?: boolean;
 	result?: string;
 	subtype?: string;
@@ -203,7 +203,9 @@ export function parseCliLine(text: string): CliEvent | null {
 		case "user": {
 			const blocks = Array.isArray(line.message?.content) ? line.message.content : [];
 			const ids = blocks.flatMap((block) => block.type === "tool_result" && typeof block.tool_use_id === "string" ? [block.tool_use_id] : []);
-			return ids.length ? { type: "toolResults", ids } : null;
+			// Fork: keep the CLI's own result text so a refused harness call can be logged.
+			const texts = blocks.flatMap((block) => block.type === "tool_result" ? [toolResultText(block.content)] : []);
+			return ids.length ? { type: "toolResults", ids, texts } : null;
 		}
 
 		case "system":
@@ -216,4 +218,10 @@ export function parseCliLine(text: string): CliEvent | null {
 		default:
 			return null;
 	}
+}
+
+function toolResultText(content: unknown): string {
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	return content.map((part) => (part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "")).join(" ");
 }

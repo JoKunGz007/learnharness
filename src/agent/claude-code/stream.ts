@@ -690,11 +690,18 @@ class ClaudeProcess implements LiveProcess {
 			// Without the bridge the model has no tools and types its calls as plain text.
 			const bridgeBad = bridgeStatus === undefined || (bridgeStatus !== "connected" && bridgeStatus !== "pending")
 				|| (bridgeStatus === "connected" && declared.some((name) => !event.tools.includes(name)));
-			if (declared.length > 0 && bridgeBad) this.fail(BRIDGE_UNREACHABLE_MESSAGE);
+			if (declared.length > 0 && bridgeBad) {
+				// Fork: say why, so a bridge failure can be told apart from missing tools.
+				const missing = declared.filter((name) => !event.tools.includes(name));
+				console.error(`[claude-code] bridge unreachable at init: status=${bridgeStatus ?? "absent"}, missing tools=${missing.length}/${declared.length}`);
+				this.fail(BRIDGE_UNREACHABLE_MESSAGE);
+			}
 			return;
 		}
 		if (event.type === "toolResults") {
 			if (event.ids.some((id) => this.sourceCalls.some((call) => call.id === id))) {
+				// Fork: log what the CLI answered (unknown tool, policy denial, bad input) before failing.
+				console.error(`[claude-code] CLI refused a harness tool call: ${event.texts.join(" | ").slice(0, 500)}`);
 				this.fail("claude CLI refused a harness tool call before MCP admission");
 			}
 			return;

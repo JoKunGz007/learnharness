@@ -197,7 +197,9 @@ function closeHttpServer(server: http.Server): Promise<void> {
 }
 
 function toMcpConfig(port: number, authorization: string): string {
-	const server = { type: "http", url: `http://${LOOPBACK_HOST}:${port}/mcp`, headers: { Authorization: authorization } };
+	// Fork: since CLI 2.1.326 MCP servers connect without blocking; `alwaysLoad` makes the CLI wait for the
+	// bridge before the model runs, so a first tool call can't hit "No such tool available" (GOTCHAS.md).
+	const server = { type: "http", url: `http://${LOOPBACK_HOST}:${port}/mcp`, headers: { Authorization: authorization }, alwaysLoad: true };
 
 	return JSON.stringify({ mcpServers: { [BRIDGE_SERVER_NAME]: server } });
 }
