@@ -192,3 +192,18 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: unknown; seen once (2026-11-24, welcome-back build).
 - Avoid: re-run before debugging. A fresh `git worktree` of HEAD is no typecheck baseline: it fails on the plugin folders until `npm run plugins:setup` runs there.
 - Verify: a second `npx tsc --noEmit` exits 0.
+
+## Graph statements can't be edited in place
+- Symptom: appending a node line with a new statement for an existing id doesn't change what the graph shows.
+- Cause: `data/graph/nodes.jsonl` is append-only and the first line per id fixes name and statement; later lines only add aliases (`src/core/graph.ts` ~399–422). The API has DELETE only (`app/api/graph/nodes/[id]`).
+- Avoid: corrections (D-023) need a separate ledger folded at read time, and `deleteNodeTraces` (`src/core/graph-deletion.ts`) must clear it too.
+- Verify: `getGraph` returns the override text.
+
+## Notes/PDF statements have no source passage
+- Symptom: a statement from imported notes or a PDF can't be traced to the text it came from.
+- Cause: notes extraction strips `messageId` (`extraction.ts` ~292–297); provenance is just the `src_` id and `NotesSource` keeps only `filePath`/`importedAt`. Chat statements keep `{chatId, messageId}`.
+- Avoid: D-023 adds chunk storage for new imports; older imports stay without an anchor.
+- Verify: a new import's node provenance carries a chunk anchor.
+
+## Two FSRS stores share one key space
+- Flashcards' graph cards use the graph node id as `propositionId`, the same key `/review` uses. Its state is `data/core-plugin-data/flashcards/flashcards.json`, with minute learning steps `[1,10]` (`store.cjs:52`) and only self-grades written. Kept off (D-023); turning it on gives a second, unrelated schedule.
