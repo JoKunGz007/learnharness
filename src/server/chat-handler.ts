@@ -12,7 +12,8 @@ import { nativeSubscriptionError } from "../agent/subscription-stream.ts";
 import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
 import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
 import { reconstructRequestCause } from "../core/native-messages.ts";
-import { createJobRunner } from "../agent/subagents/runner.ts";
+import { createJobRunner, KIND_ROLE } from "../agent/subagents/runner.ts";
+import { CLAUDE_CODE_BACKGROUND_OFF } from "../agent/claude-code/constants.ts"; // Fork
 import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import type { ModelRole } from "../../config.ts";
 import {
@@ -164,6 +165,17 @@ setTurnRunner(async (chatId, input) => {
 function resolveEngine(role: ModelRole): PiEngine | undefined {
 	const spec = resolveRoleSpec(role, stores.settingsStore.readSettings());
 	return spec ? piEngineForSpec(spec, true, undefined, retentionForSlot(ROLE_SLOT[role])) : undefined;
+}
+
+/** Fork: dispatch-time gate for sub-agent jobs. A job whose resolved provider has background use off is refused as a tool error
+ *  (no job record, no spawn) instead of failing inside its first model call. Same texts as the in-run refusals (models.ts, stream errors). */
+export function jobDispatchRefusal(kind: string): string | null {
+	const role = (KIND_ROLE as Record<string, ModelRole | undefined>)[kind];
+	const spec = role ? resolveRoleSpec(role, stores.settingsStore.readSettings()) : undefined;
+	if (!spec || connectionBackgroundAllowed(spec.provider)) return null;
+	if (spec.provider === CLAUDE_CODE_PROVIDER) return CLAUDE_CODE_BACKGROUND_OFF;
+	if (spec.provider === "chatgpt") return chatGPTStreamError("background");
+	return nativeSubscriptionError(spec.provider, "background");
 }
 
 /** Slot policy is independent of model overrides. Read fresh per operation,
@@ -750,6 +762,7 @@ export async function handleChatInput(
 							jobStore: stores.jobStore,
 							spawn: (job, input) => void jobRunner.runJob(job.id, input),
 							searchAvailable,
+							admit: jobDispatchRefusal, // Fork
 						},
 						...(graphToolsEnabled(effective) ? { graph: { chatStore: stores.chatStore, graphStore: stores.graphStore } } : {}),
 					},
@@ -765,6 +778,7 @@ export async function handleChatInput(
 						// The registry drop's signal (2026-09-20): no live engine
 						// = no research tool in the teacher's registry.
 						searchAvailable,
+						admit: jobDispatchRefusal, // Fork
 						mistakeStore: { read: readMistakes },
 					},
 					agentOpts,
@@ -780,6 +794,7 @@ export async function handleChatInput(
 						jobStore: stores.jobStore,
 						spawn: (job, input) => void jobRunner.runJob(job.id, input),
 						searchAvailable,
+						admit: jobDispatchRefusal, // Fork
 						// The map reader (wave 7): the prober reads the learner's
 						// knowledge graph through tools when the gate opens —
 						// graph master switch AND the agent.graphTools toggle.

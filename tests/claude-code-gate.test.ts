@@ -81,3 +81,22 @@ test("saving claudeCode settings notifies change listeners; unsubscribed listene
 	await save({ enabled: true });
 	assert.equal(calls, 2);
 });
+
+test("job dispatch with background off is refused as a tool error: no job record, no spawn", async () => {
+	const { jobDispatchRefusal } = await import("../src/server/chat-handler.ts");
+	const { jobTools } = await import("../src/agent/tools/jobs.ts");
+	const slot = { model: { provider: "claude-code", id: CLAUDE_CODE_MODELS[0]!.id } };
+	const models = { strong: slot, cheap: slot, vision: slot };
+	const created: unknown[] = [], spawned: unknown[] = [];
+	const jobStore = { findJobByToolCallId: () => undefined, createJob: (init: unknown) => { created.push(init); return { id: "j1", ...(init as object) }; } };
+	const tools = jobTools({ chatId: "c", jobStore: jobStore as never, spawn: (job) => { spawned.push(job); }, admit: jobDispatchRefusal });
+	const run = () => tools.research!.execute("call-1", { question: "q" } as never);
+	writeSettings({ version: 1, models, claudeCode: { enabled: true, allowBackgroundUse: false } } as never);
+	assert.match(jobDispatchRefusal("research") ?? "", REFUSAL);
+	await assert.rejects(run(), REFUSAL);
+	assert.deepEqual([created.length, spawned.length], [0, 0]);
+	writeSettings({ version: 1, models, claudeCode: { enabled: true } } as never);
+	assert.equal(jobDispatchRefusal("research"), null);
+	await run();
+	assert.deepEqual([created.length, spawned.length], [1, 1]);
+});

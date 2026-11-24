@@ -122,7 +122,7 @@ interface LoopContext {
 
 /** The kind→role table (model slots wave, 2026-09-20): which ModelRole's
  * engine each sub-agent kind runs — the engineFor injection key. */
-const KIND_ROLE: Record<BuiltinJobKind, ModelRole> = {
+export const KIND_ROLE: Record<BuiltinJobKind, ModelRole> = { // Fork: exported for the dispatch-time background gate
 	research: "researcher",
 	demo: "demoBuilder",
 	visual: "visualMaker",

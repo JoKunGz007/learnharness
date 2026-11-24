@@ -45,6 +45,8 @@ Future teaching sessions can read the graph instead of starting from scratch. Pr
 
 ## Download and get started
 
+> **This fork (JoKunGz007/learnharness):** a Windows build that runs on your own Claude subscription through the locally installed Claude Code, no API key. **[Download the fork's latest release](https://github.com/JoKunGz007/learnharness/releases/latest)** and follow the install steps there. The links below are upstream's official builds.
+
 **[Download from learnharness.ai](https://learnharness.ai)** · [GitHub Releases](https://github.com/amosblomqvist/learnharness/releases)
 
 - **macOS (Apple Silicon):** signed and notarized DMG. Drag the app to Applications.

@@ -30,6 +30,8 @@ export interface JobToolContext {
 	 *  Research dispatch does not depend on it: web_fetch is keyless and
 	 *  web_search reports a missing provider as a recoverable tool result. */
 	searchAvailable?: () => boolean;
+	/** Fork: dispatch-time refusal (null = admit). A string fails the CALL before any job is created, so the teacher sees it this turn. */
+	admit?: (kind: JobRecord["kind"]) => string | null;
 }
 
 export const researchInputSchema = Type.Object({
@@ -102,6 +104,7 @@ function dispatch(
 	input: ResearchInput | DemoInput | VisualInput | PdfInput,
 ): string {
 	const existing = ctx.jobStore.findJobByToolCallId(ctx.chatId, toolCallId);
+	if (!existing) { const refusal = ctx.admit?.(kind); if (refusal) throw new Error(refusal); } // Fork
 	const job = existing ?? ctx.jobStore.createJob({ kind, chatId: ctx.chatId, toolCallId, input });
 	if (!existing) ctx.spawn(job, input);
 	return `Dispatched (job ${job.id}). ${ack}`;

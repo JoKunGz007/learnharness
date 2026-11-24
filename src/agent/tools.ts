@@ -270,6 +270,8 @@ export interface ProberToolContext extends ProbeDoneContext {
 	spawn: (job: JobRecord, input: ResearchInput | DemoInput | VisualInput | PdfInput) => void;
 	/** Retained search-status seam; research dispatch is available keylessly. */
 	searchAvailable?: () => boolean;
+	/** Fork: dispatch-time refusal for job tools (see JobToolContext.admit). */
+	admit?: (kind: JobRecord["kind"]) => string | null;
 	/** The prober's graph-map reader (wave 7): present = the two map tools
 	 *  (list_sessions / list_propositions) are registered. The composition
 	 *  root passes it only when graphToolsEnabled(effective) — the graph
@@ -298,6 +300,7 @@ export function createProberTools(
 		jobStore: ctx.jobStore,
 		spawn: ctx.spawn,
 		searchAvailable: ctx.searchAvailable,
+		admit: ctx.admit, // Fork
 	});
 	// Quizzing mechanics (owner 2026-09-27): free-recall swaps the probe
 	// quiz for the probe explain — one quizzing tool at a time, whichever
@@ -400,6 +403,8 @@ export interface TeacherToolContext extends PlanToolContext {
 	spawn: (job: JobRecord, input: ResearchInput | DemoInput | VisualInput | PdfInput) => void;
 	/** Retained search-status seam; research dispatch is available keylessly. */
 	searchAvailable?: () => boolean;
+	/** Fork: dispatch-time refusal for job tools (see JobToolContext.admit). */
+	admit?: (kind: JobRecord["kind"]) => string | null;
 	/** Read-only mistake history; injected so the agent layer stays store-free. */
 	mistakeStore?: MistakeToolContext;
 }
@@ -463,7 +468,7 @@ export function createTeacherTools(
 			// only, always on — it shows the learner their own file.
 			show_image: createShowImageTool(ctx),
 			...planTools(ctx),
-			...jobTools({ chatId: ctx.chatId, jobStore: ctx.jobStore, spawn: ctx.spawn, searchAvailable: ctx.searchAvailable }),
+			...jobTools({ chatId: ctx.chatId, jobStore: ctx.jobStore, spawn: ctx.spawn, searchAvailable: ctx.searchAvailable, admit: ctx.admit }),
 			// The learner's mistake history, read-only (never a file path).
 			...mistakeTools({ read: ctx.mistakeStore?.read ?? (() => []) }),
 		},

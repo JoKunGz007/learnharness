@@ -73,6 +73,7 @@ import { fireJobAbort, isJobLive } from "../agent/subagents/aborts.ts";
 import { stores, effectiveSettings } from "./stores.ts";
 import { resolveConversationSpec } from "../core/settings-resolution.ts";
 import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
+import { CLAUDE_CODE_PROVIDER } from "../core/contracts/claude-code.ts"; // Fork
 import { connectionBackgroundAllowed, isSubscriptionProvider, onSubscriptionChange } from "../agent/subscription-connections.ts";
 import { isTurnRunning } from "./turn-liveness.ts";
 import { parkedDismissalGeneration } from "./dismissal-park.ts";
@@ -645,7 +646,7 @@ async function pump(chatId: string): Promise<void> {
 
 /** Fork: claude-code is gated by its toggle too, so the watcher covers it. */
 installClaudeCodeBackgroundGate(); // Fork: jobs may load in a chunk without chat-handler
-const watchedProvider = (provider: string | undefined) => isSubscriptionProvider(provider) || provider === "claude-code";
+const watchedProvider = (provider: string | undefined) => isSubscriptionProvider(provider) || provider === CLAUDE_CODE_PROVIDER;
 // Connection changes are the only wake for consent-deferred automatic work.
 // No retry timer, inference, or API-key fallback is started while consent is off.
 state().stopConnectionWatch?.();
