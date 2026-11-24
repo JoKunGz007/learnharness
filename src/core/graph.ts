@@ -63,6 +63,7 @@ import type {
 	GraphNode,
 	ProvenancePoint,
 	GraphSnapshot,
+	VerificationLine,
 } from "./contracts.ts";
 import { MIN_CLUSTER_SIZE } from "./clusters.ts";
 import { formatChainLine } from "./chains.ts";
@@ -152,9 +153,12 @@ export function mergeFindings(
 	verdicts: AuditVerdicts,
 	deps: GraphDeps,
 	source: MergeSource,
-): EmissionStats {
+): MergeResult {
 	const { graphStore: ledgers } = deps;
 	const stats: EmissionStats = { nodes: 0, chains: 0 };
+	// Fork (#806): which node ids this batch created / re-encountered.
+	const createdNodeIds: string[] = [];
+	const linkedNodeIds: string[] = [];
 
 	// 1. Resolution: THIS job's propositions → graph node ids, built
 	//    in-memory as the propositions resolve (owner, 2026-09-29: the
@@ -184,6 +188,7 @@ export function mergeFindings(
 			// line — the session's phrasings (statement + aliases) join the
 			// node's aliases, the provenance unions. Reads merge by id.
 			graphNodeId = linkTo;
+			if (!linkedNodeIds.includes(linkTo)) linkedNodeIds.push(linkTo);
 			// Link-append: phrasings + provenance join at read time (the
 			// first line's name/statement/createdAt stand).
 			ledgers.appendNode({
@@ -205,6 +210,7 @@ export function mergeFindings(
 			};
 			ledgers.appendNode(node);
 			stats.nodes++;
+			createdNodeIds.push(node.id);
 			graphNodeId = node.id;
 			existingIds.add(graphNodeId);
 		}
@@ -286,7 +292,20 @@ export function mergeFindings(
 	} else {
 		ledgers.appendCheckpoint({ chatId, foldedAt: source.foldedAt });
 	}
-	return stats;
+	return { ...stats, createdNodeIds, linkedNodeIds };
+}
+
+/** Fork (#806): what mergeFindings returns — the counts (EmissionStats, what
+ *  callers persist) plus the node ids this batch touched, for the verifier. */
+export interface MergeResult extends EmissionStats {
+	createdNodeIds: string[];
+	linkedNodeIds: string[];
+}
+
+/** Fork (#806, D-023): append one verifier outcome. The one write helper for
+ *  verification.jsonl; the latest line per node wins at read (getGraph). */
+export function recordVerification(store: Pick<GraphStore, "appendVerification">, line: VerificationLine): void {
+	store.appendVerification(line);
 }
 
 /** The deterministic chain-simplification pass (owner, 2026-09-30
@@ -403,7 +422,9 @@ export interface DerivedGraph {
  * arg_ id / premises / createdAt are the chain's identity.
  * `store events, derive state` — this is the only reader that matters.
  */
-export function getGraph(graphStore: Pick<GraphStore, "readNodes" | "readChains">): DerivedGraph {
+export function getGraph(
+	graphStore: Pick<GraphStore, "readNodes" | "readChains"> & Partial<Pick<GraphStore, "readVerification">>,
+): DerivedGraph {
 	// Merge node lines by id (first line defines; later lines add phrasings).
 	const byId = new Map<string, GraphNode>();
 	for (const line of graphStore.readNodes()) {
@@ -419,6 +440,25 @@ export function getGraph(graphStore: Pick<GraphStore, "readNodes" | "readChains"
 		for (const pt of line.provenance) {
 			if (!existing.provenance.some((q) => samePoint(q, pt))) existing.provenance.push(pt);
 		}
+	}
+
+	// Fork (#806, D-023): fold verification.jsonl — the latest line per node
+	// wins. A "corrected" line with correctedText overrides the statement; the
+	// first-line statement moves to verification.oldText. Ports that predate
+	// the ledger (partial fakes) simply have no readVerification.
+	const latest = new Map<string, VerificationLine>();
+	for (const line of graphStore.readVerification?.() ?? []) latest.set(line.nodeId, line);
+	for (const [nodeId, line] of latest) {
+		const node = byId.get(nodeId);
+		if (!node) continue;
+		const verification: NonNullable<GraphNode["verification"]> = { status: line.status, at: line.at };
+		if (line.status === "corrected" && line.correctedText !== undefined) {
+			verification.oldText = node.statement;
+			node.statement = line.correctedText;
+		} else if (line.oldText !== undefined) verification.oldText = line.oldText;
+		if (line.sourceRef !== undefined) verification.sourceRef = line.sourceRef;
+		if (line.note !== undefined) verification.note = line.note;
+		node.verification = verification;
 	}
 
 	// Merge chain assertion lines by (premises, conclusion): the first

@@ -207,3 +207,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 
 ## Two FSRS stores share one key space
 - Flashcards' graph cards use the graph node id as `propositionId`, the same key `/review` uses. Its state is `data/core-plugin-data/flashcards/flashcards.json`, with minute learning steps `[1,10]` (`store.cjs:52`) and only self-grades written. Kept off (D-023); turning it on gives a second, unrelated schedule.
+
+## New `GraphStore` methods break three test fakes
+- Symptom: `tsc` fails in `tests/extraction.test.ts`, `tests/notes-import-route.test.ts` and `tests/worker-admission-integration.test.ts` after a method is added to `GraphStore` (`src/core/ports.ts`).
+- Cause: those tests build typed fakes; `graph-tools.test.ts` casts, so it doesn't break.
+- Avoid: add the method to all three fakes in the same change.
+- Verify: `npx tsc --noEmit` clean.

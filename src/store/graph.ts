@@ -46,6 +46,7 @@ import type {
 	ProvenancePoint,
 	CoverageEntry,
 	SessionCheckpoint,
+	VerificationLine,
 } from "../core/contracts.ts";
 import type { GraphStore } from "../core/ports.ts";
 
@@ -121,7 +122,18 @@ const isGraphChain = (v: unknown): v is GraphChain =>
 	v.provenance.every(isProvenancePoint) &&
 	isString(v.createdAt);
 
-const isCheckpoint = (v: unknown): v is SessionCheckpoint =>
+/** Fork (#806): a verification line — status must be one of the three. */
+const isVerificationLine = (v: unknown): v is VerificationLine =>
+	isRecord(v) &&
+	isString(v.nodeId) &&
+	isString(v.at) &&
+	(v.status === "verified" || v.status === "corrected" || v.status === "doubtful") &&
+	(v.oldText === undefined || isString(v.oldText)) &&
+	(v.correctedText === undefined || isString(v.correctedText)) &&
+	(v.sourceRef === undefined || isString(v.sourceRef)) &&
+	(v.note === undefined || isString(v.note));
+
+const isCheckpoint =(v: unknown): v is SessionCheckpoint =>
 	isRecord(v) && isString(v.chatId) && isString(v.foldedAt);
 
 const isCoverageEntry = (v: unknown): v is CoverageEntry =>
@@ -161,6 +173,14 @@ export const graphStore: GraphStore = {
 	},
 	readCoverage(): CoverageEntry[] {
 		return readValid(LEDGER_FILES.coverage, isCoverageEntry);
+	},
+
+	// Fork (#806, D-023): verification ledger.
+	appendVerification(line: VerificationLine): void {
+		appendLine(LEDGER_FILES.verification, line);
+	},
+	readVerification(): VerificationLine[] {
+		return readValid(LEDGER_FILES.verification, isVerificationLine);
 	},
 
 	// ── imported-notes bookkeeping (config.SOURCES_FILE — a JSON map) ──
@@ -214,12 +234,14 @@ export const graphStore: GraphStore = {
 		chains?: GraphChain[];
 		coverage?: CoverageEntry[];
 		checkpoints?: SessionCheckpoint[];
+		verification?: VerificationLine[];
 	}): void {
 		const files = {
 			nodes: LEDGER_FILES.nodes,
 			chains: LEDGER_FILES.chains,
 			coverage: LEDGER_FILES.coverage,
 			checkpoints: LEDGER_FILES.sessions,
+			verification: LEDGER_FILES.verification,
 		} as const;
 		for (const [key, records] of Object.entries(next) as [keyof typeof files, unknown[]][]) {
 			const file = files[key];

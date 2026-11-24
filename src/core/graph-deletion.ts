@@ -322,9 +322,13 @@ export function deleteNodeTraces(graphStore: GraphStore, nodeId: string): NodeDe
 	// Only the touched ledgers: the node's own lines always die (its file
 	// must move), everything else rewrites only when rows actually drop.
 	const outNodes = graphStore.readNodes().filter((line) => line.id !== nodeId);
+	// Fork (#806): the node's verification lines die with it.
+	const verificationLines = graphStore.readVerification();
+	const outVerification = verificationLines.filter((line) => line.nodeId !== nodeId);
 	graphStore.rewriteLedgers({
 		nodes: outNodes,
 		...(outChains.length !== chainLines.length ? { chains: outChains } : {}),
+		...(outVerification.length !== verificationLines.length ? { verification: outVerification } : {}),
 	});
 
 	// The resting positions die with the node and every dead chain.

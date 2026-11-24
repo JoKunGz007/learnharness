@@ -131,6 +131,37 @@ export interface GraphNode {
 	createdAt: string;
 	/** Every (chat, message) point where this proposition came up. */
 	provenance: ProvenancePoint[];
+	/** Fork: derived at read time from verification.jsonl (never stored on a
+	 *  nodes.jsonl line). Absent = unverified. When status is "corrected",
+	 *  `statement` above already IS the corrected text and `oldText` holds the
+	 *  original first-line statement. */
+	verification?: NodeVerification;
+}
+
+/** Fork (#806, D-023): one verification.jsonl line — an append-only outcome
+ *  of the background verifier for one node. The latest line per nodeId wins
+ *  when folded. */
+export interface VerificationLine {
+	nodeId: string;
+	status: "verified" | "corrected" | "doubtful";
+	/** ISO — when the verdict was recorded. */
+	at: string;
+	/** The statement before the correction (informational on the line; the
+	 *  fold takes the node's first-line statement as the truth). */
+	oldText?: string;
+	/** For "corrected": the replacement statement. */
+	correctedText?: string;
+	sourceRef?: string;
+	note?: string;
+}
+
+/** The folded verification state carried on a snapshot node. */
+export interface NodeVerification {
+	status: VerificationLine["status"];
+	at: string;
+	oldText?: string;
+	sourceRef?: string;
+	note?: string;
 }
 
 /** sessions.jsonl line — the emission checkpoint for one chat (which chats

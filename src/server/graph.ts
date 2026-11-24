@@ -61,6 +61,7 @@ export function graphRevision(): number {
 		LEDGER_FILES.chains,
 		LEDGER_FILES.sessions,
 		LEDGER_FILES.coverage,
+		LEDGER_FILES.verification, // Fork (#806)
 		POSITIONS_FILE,
 	]) {
 		try {

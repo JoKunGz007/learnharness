@@ -81,7 +81,7 @@ function memoryLedgers(): GraphStore {
 	return {
 		appendNode: (value) => { nodes.push(value); }, readNodes: () => structuredClone(nodes),
 		appendChain: (value) => { chains.push(value); }, readChains: () => structuredClone(chains),
-		appendCoverage: (value) => { coverage.push(value); }, readCoverage: () => structuredClone(coverage),
+		appendCoverage: (value) => { coverage.push(value); }, readCoverage: () => structuredClone(coverage), appendVerification: () => {}, readVerification: () => [],
 		appendCheckpoint: (value) => { checkpoints.push(value); }, readCheckpoints: () => structuredClone(checkpoints),
 		upsertSource: (value) => { sources.set(value.id, { ...value, extractions: sources.get(value.id)?.extractions ?? [] }); },
 		readSources: () => structuredClone([...sources.values()]),

@@ -30,6 +30,7 @@ import type {
 	SideChatThread,
 	TurnUsage,
 	NotesSource,
+	VerificationLine,
 } from "./contracts.ts";
 import type { UserSettings } from "./settings.ts";
 import type { Theme, ThemeFile } from "./themes.ts";
@@ -124,6 +125,10 @@ export interface GraphStore {
 	 *  checkpoint — "uncovered" is derived from these, never tracked. */
 	appendCoverage(entry: CoverageEntry): void;
 	readCoverage(): CoverageEntry[];
+	/** Fork (#806, D-023): append one verifier outcome (append-only; the
+	 *  latest line per nodeId wins when folded in core/graph.ts). */
+	appendVerification(line: VerificationLine): void;
+	readVerification(): VerificationLine[];
 
 	/** Append one cluster-naming run's usage (graph-global money channel) —
 	 *  idempotent per startedAt. */
@@ -159,6 +164,7 @@ export interface GraphStore {
 		chains?: GraphChain[];
 		coverage?: CoverageEntry[];
 		checkpoints?: SessionCheckpoint[];
+		verification?: VerificationLine[];
 	}): void;
 }
 

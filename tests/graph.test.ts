@@ -33,6 +33,10 @@ import { CURRENT_GRAPH_FORMAT_VERSION } from "../src/core/contracts/graph.ts";
 /** The wired fs adapters, exactly what src/server/stores.ts passes in production. */
 const graphDeps = { chatStore, graphStore } as const satisfies GraphDeps;
 
+/** Fork (#806): mergeFindings also returns created/linked node ids; these
+ *  assertions are about the counts only. */
+const counts = ({ createdNodeIds: _c, linkedNodeIds: _l, ...rest }: ReturnType<typeof mergeFindings>) => rest;
+
 /** The session merge source for a chat — what the pipeline passes: the
  *  fold stamp only (the merger reads no transcript; quiz-event rebuilding
  *  died with the events ledger, 2026-09-27). */
@@ -280,7 +284,7 @@ function scopedGraph(chatIds: string[]) {
 describe("the merger (mergeFindings)", () => {
 	it("creates nodes from the verdicts with chat-level provenance", () => {
 		const stats = mergeFindings(chat1.id, fixtureFindings(), fixtureVerdicts(), graphDeps, sessionSource(chat1.id));
-		assert.deepEqual(stats, { nodes: 3, chains: 1 });
+		assert.deepEqual(counts(stats), { nodes: 3, chains: 1 });
 
 		const graph = scopedGraph([chat1.id]);
 		assert.equal(graph.nodes.length, 3);
@@ -378,9 +382,9 @@ describe("the merger (mergeFindings)", () => {
 			chains: [{ premises: ["p1"], conclusion: "p2" }],
 		};
 		const first = mergeFindings(rep.id, findings, { links: [] }, graphDeps, sessionSource(rep.id));
-		assert.deepEqual(first, { nodes: 2, chains: 1 });
+		assert.deepEqual(counts(first), { nodes: 2, chains: 1 });
 		const second = mergeFindings(rep.id, findings, { links: [] }, graphDeps, sessionSource(rep.id));
-		assert.deepEqual(second, { nodes: 2, chains: 1 }, "nothing remembered — everything re-creates");
+		assert.deepEqual(counts(second), { nodes: 2, chains: 1 }, "nothing remembered — everything re-creates");
 		const graph = scopedGraph([rep.id]);
 		assert.equal(graph.nodes.length, 4, "the propositions merge again as fresh nodes");
 		assert.equal(graph.chains.length, 2, "fresh endpoints — fresh chain assertions");
@@ -398,7 +402,7 @@ describe("the merger (mergeFindings)", () => {
 			chains: [],
 		};
 		const stats = mergeFindings(dup.id, findings, { links: [] }, graphDeps, sessionSource(dup.id));
-		assert.deepEqual(stats, { nodes: 1, chains: 0 }, "the duplicate id is skipped — first resolution stands");
+		assert.deepEqual(counts(stats), { nodes: 1, chains: 0 }, "the duplicate id is skipped — first resolution stands");
 	});
 
 	it("applies a linkTo verdict: phrasings join aliases, provenance unions, no duplicate node", () => {
@@ -435,7 +439,7 @@ describe("the merger (mergeFindings)", () => {
 			graphDeps,
 			sessionSource(chat2.id),
 		);
-		assert.deepEqual(stats, { nodes: 0, chains: 0 });
+		assert.deepEqual(counts(stats), { nodes: 0, chains: 0 });
 
 		const after = scopedGraph([chat1.id, chat2.id]);
 		assert.equal(after.nodes.length, 3, "no duplicate node");
@@ -694,7 +698,7 @@ describe("the merger (mergeFindings)", () => {
 			graphDeps,
 			{ foldedAt: "2026-09-13T00:00:00.000Z" },
 		);
-		assert.deepEqual(stats, { nodes: 1, chains: 0 });
+		assert.deepEqual(counts(stats), { nodes: 1, chains: 0 });
 
 		const node = getGraph(graphStore).nodes.find((n) => n.statement.startsWith("Vim starts"))!;
 		assert.deepEqual(node.provenance, [{ chatId: "src_notesfixture", messageId: "" }], "one chat-level point — the source key, no message anchors");

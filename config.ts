@@ -72,6 +72,9 @@ export const LEDGER_FILES = {
 	 *  the checkpoint's replacement for chat extractions — notes keep
 	 *  sessions.jsonl, whole-file as they are). */
 	coverage: path.join(/* turbopackIgnore: true */ PATHS.graph, "coverage.jsonl"),
+	/** Fork (#806, D-023): background verifier outcomes (contracts/graph.ts
+	 *  VerificationLine) — append-only, latest line per node wins at read. */
+	verification: path.join(/* turbopackIgnore: true */ PATHS.graph, "verification.jsonl"),
 } as const;
 
 /**
