@@ -23,6 +23,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-018 — 2026-11-24 — Mistake analysis checks the background gate before queuing
 - D-019 — 2026-11-24 — Fixes from a review of the fork's claude-code code
 - D-020 — 2026-11-24 — Repo public; share builds as GitHub Releases on the fork
+- D-021 — 2026-11-24 — Refuse background jobs at dispatch when background use is off
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -161,3 +162,9 @@ Decision: `JoKunGz007/learnharness` is public. Builds for others go out as GitHu
 Rationale: AGPL-3.0 is satisfied by the public source. Each user signs in to their own Claude Code, so no token is shared (D-001). The README's download links still point to upstream; send people the fork's `/releases/latest` link.
 Consequences: commit author email is public in the history (owner told; not rewritten). Personal context in `CLAUDE.md` and the continuity docs is public too.
 Evidence: `gh repo view` (visibility PUBLIC, license agpl-3.0); `.tmp/release-build.log` (build chain exit 0, `smoke-provider-runtime` and `smoke-server --electron` passed first try); `gh release view v0.7.0-fork.1` (asset `LearnHarness-0.7.0-x64-setup.exe`, 180,999,759 bytes, uploaded; tag at `7ce0b123`).
+
+## D-021 — 2026-11-24 — Refuse background jobs at dispatch when background use is off
+Status: accepted (owner: "a, leave as is. b, refuse at dispatch", 2026-11-24).
+Decision: `jobDispatchRefusal` (`src/server/chat-handler.ts`), passed as `JobToolContext.admit` at the three job-context sites, refuses a job in `dispatch()` before `createJob` when its role's provider fails `connectionBackgroundAllowed`; the tutor gets the existing refusal text (claude-code: `CLAUDE_CODE_BACKGROUND_OFF`, now shared with `models.ts`) as a tool error that turn. The in-run check in `models.ts` stays as a backstop. Delivery holds (deferred wake, open question, parks) stay as upstream.
+Rationale: rejected auto-retry when the toggle returns (spends limits unattended) and a Retry button (new UI). Holds: the fix would break upstream's tested rule, and any learner message delivers a held result.
+Evidence: `tests/claude-code-gate.test.ts` new test (refused with 0 jobs/0 spawns off; 1/1 on), 5/5; `subscription-background` 4/4; `job-delivery-recovery` 18/18; `jobs` 57/57; `npx tsc --noEmit` clean (`.tmp/dispatch-*.log`).
