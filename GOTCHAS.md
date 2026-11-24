@@ -202,7 +202,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 ## Notes/PDF statements have no source passage
 - Symptom: a statement from imported notes or a PDF can't be traced to the text it came from.
 - Cause: notes extraction strips `messageId` (`extraction.ts` ~292–297); provenance is just the `src_` id and `NotesSource` keeps only `filePath`/`importedAt`. Chat statements keep `{chatId, messageId}`.
-- Avoid: D-023 adds chunk storage for new imports; older imports stay without an anchor.
+- Fixed for new imports (#806 B, 2026-11-24): provenance gets `chunk: {importKey, index}`; text lives in `<graph>/sources/<srcId>/<importKey>.json` (`importKey` = `String(Date.now())`, same instant as `importedAt`), read with `graphStore.readSourceChunk`, removed only by `deleteSources` (`src/server/source-deletion.ts`). Older imports stay without an anchor. Re-importing a path keeps the same `src_` id, so chunks are keyed per import, never per source.
+- `samePoint` (`core/graph.ts`) must compare every provenance field, or `getGraph` dedupes distinct points away; it now includes `chunk`.
 - Verify: a new import's node provenance carries a chunk anchor.
 
 ## Two FSRS stores share one key space

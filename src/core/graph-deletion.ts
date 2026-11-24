@@ -212,11 +212,18 @@ export function deleteSourcesTraces(graphStore: GraphStore, sourceIds: ReadonlyS
 	stats.nodesRemoved = [...new Set(nodeLines.map((line) => line.id))].filter((id) => !live.has(id)).length;
 	stats.chainsRemoved = chainLines.length - outChains.length;
 
+	// Fork (#806 B): verification lines of the nodes (and arguments) that died.
+	const keptChainIds = new Set(outChains.map((line) => line.id));
+	const deadChainIdsEarly = new Set(chainLines.filter((line) => !keptChainIds.has(line.id)).map((line) => line.id));
+	const verificationLines = graphStore.readVerification();
+	const outVerification = verificationLines.filter((line) => !deadNodes.has(line.nodeId) && !deadChainIdsEarly.has(line.nodeId));
+
 	graphStore.rewriteLedgers({
 		nodes: outNodes,
 		chains: outChains,
 		coverage,
 		checkpoints,
+		...(outVerification.length !== verificationLines.length ? { verification: outVerification } : {}),
 	});
 
 	// 4. Positions: prune dead nodes AND dead chains (an argument's derived

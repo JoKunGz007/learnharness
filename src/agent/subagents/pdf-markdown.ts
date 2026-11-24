@@ -292,5 +292,11 @@ export async function documentToMarkdown(doc: PDFDocumentProxy, pageNumbers?: re
 
 /** The pages that carry text, each under a `--- Page N ---` marker (the pdf-reader's existing format). */
 export function joinPages(pages: readonly PdfPage[]): string {
-	return pages.flatMap((p) => (p.kind === "text" ? [`--- Page ${p.number} ---\n\n${p.markdown}`] : [])).join("\n\n");
+	return textPages(pages).map((p) => p.text).join("\n\n");
+}
+
+/** Fork (#806 B): the text pages as the blocks joinPages joins (marker + body):
+ *  `textPages(p).map((x) => x.text).join("\n\n") === joinPages(p)`. */
+export function textPages(pages: readonly PdfPage[]): { number: number; text: string }[] {
+	return pages.flatMap((p) => (p.kind === "text" ? [{ number: p.number, text: `--- Page ${p.number} ---\n\n${p.markdown}` }] : []));
 }

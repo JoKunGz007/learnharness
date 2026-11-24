@@ -20,7 +20,7 @@
  * healthy. The dock's chips + graph refetch track progress live through
  * /api/graph/status, as with session runs.
  */
-import { convertPdf, extraction, joinPages, NotesImportError, sourceDirectory } from "@/src/server";
+import { convertPdf, extraction, joinPages, textPages, NotesImportError, sourceDirectory } from "@/src/server";
 import { IMPORT_EXTENSIONS, MAX_IMPORT_BODY_BYTES, MAX_IMPORT_BYTES, UNSUPPORTED_TYPE_MESSAGE, validNotesPath } from "@/lib/notes-import-limits.ts";
 import { FormBodyLimitError, readBoundedFormData } from "@/lib/bounded-form-data.ts";
 import {
@@ -55,7 +55,7 @@ interface ImportResult {
 const MAX_PDF_PAGES = 1000;
 const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
-type NotesFile = { kind: "notes"; text: string; notice?: string } | { kind: "refused"; error: string };
+type NotesFile = { kind: "notes"; text: string; pages?: { number: number; text: string }[]; notice?: string } | { kind: "refused"; error: string };
 
 /** A PDF becomes page-marked Markdown; any other accepted file is read as text. */
 async function readNotesFile(file: File): Promise<NotesFile> {
@@ -76,7 +76,7 @@ async function readNotesFile(file: File): Promise<NotesFile> {
 			if (!text) return { kind: "refused", error: "OCR not supported yet." };
 			const skipped = pdf.pages.filter((page) => page.kind === "image-only").length;
 			const omission = skipped > 0 ? ` Skipped ${skipped} image-only ${skipped === 1 ? "page" : "pages"}; OCR is not supported.` : "";
-			return { kind: "notes", text, notice: `Scanned pages may have errors.${omission}` };
+			return { kind: "notes", text, pages: textPages(pdf.pages), notice: `Scanned pages may have errors.${omission}` };
 		}
 	}
 }
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 					continue;
 				}
 				sourceDirectory.registerImport(filePath);
-				const stats = await extraction.importNotes({ filePath, text: notes.text });
+				const stats = await extraction.importNotes({ filePath, text: notes.text, ...(notes.pages ? { pages: notes.pages } : {}) });
 				results.push({ filePath, requestIndex, outcome: "completed", ok: true, stats, ...(notes.notice ? { notice: notes.notice } : {}) });
 			} catch (err) {
 				if (err instanceof ModelsNotConfiguredError) {

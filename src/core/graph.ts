@@ -111,6 +111,9 @@ export interface MergeSource {
 	 *  extracted batch — undefined (notes path / coverage-less callers) →
 	 *  the legacy whole-chat checkpoint is written instead. */
 	coverage?: CoverageEntry[];
+	/** Fork (#806 B): notes path — the stored chunk this merge came from;
+	 *  every node/chain point it writes carries it. */
+	chunk?: ProvenancePoint["chunk"];
 }
 
 /** The run's provenance point. Chat-level by default (submit-schema slim,
@@ -119,12 +122,19 @@ export interface MergeSource {
  *  message id — the extractor-copied messageId, validated at the submit
  *  seam against the current batch. Chains, notes imports, and
  *  legacy/core callers lacking an anchor keep "" (chat-level). */
-function pointOf(chatId: string, messageId?: string): ProvenancePoint[] {
-	return [{ chatId, messageId: messageId ?? "" }];
+function pointOf(chatId: string, messageId?: string, chunk?: ProvenancePoint["chunk"]): ProvenancePoint[] {
+	return [{ chatId, messageId: messageId ?? "", ...(chunk ? { chunk: { importKey: chunk.importKey, index: chunk.index } } : {}) }];
 }
 
 const samePoint = (a: ProvenancePoint, b: ProvenancePoint): boolean =>
-	a.chatId === b.chatId && a.messageId === b.messageId;
+	a.chatId === b.chatId && a.messageId === b.messageId &&
+	a.chunk?.importKey === b.chunk?.importKey && a.chunk?.index === b.chunk?.index;
+
+/** Fork (#806 B): the verifier's VerificationLine.sourceRef for a point —
+ *  "<sourceId>@<importKey>#<index>", or undefined when it has no chunk. */
+export function chunkSourceRef(point: ProvenancePoint): string | undefined {
+	return point.chunk ? `${point.chatId}@${point.chunk.importKey}#${point.chunk.index}` : undefined;
+}
 
 // ─── the merger (extraction pipeline stage 3 — deterministic) ────────────────
 
@@ -180,7 +190,7 @@ export function mergeFindings(
 		// passage's messageId — it rides BOTH the create and the link-append
 		// line (each re-encounter anchors to ITS passage); absent (notes,
 		// legacy/core callers) → "", chat-level as before.
-		const points = pointOf(chatId, p.messageId);
+		const points = pointOf(chatId, p.messageId, source.chunk);
 		const linkTo = linkOf.get(p.id);
 		let graphNodeId: string;
 		if (linkTo !== undefined && existingIds.has(linkTo)) {
@@ -254,7 +264,7 @@ export function mergeFindings(
 		const key = chainKey(premises, conclusion);
 		if (assertedByChat.has(key)) return; // this chat already asserted this argument
 		const id = idOfKey.get(key) ?? newGraphChainId();
-		ledgers.appendChain({ id, premises, conclusion, createdAt: now, provenance: pointOf(chatId) });
+		ledgers.appendChain({ id, premises, conclusion, createdAt: now, provenance: pointOf(chatId, undefined, source.chunk) });
 		idOfKey.set(key, id);
 		assertedByChat.add(key);
 		stats.chains!++;

@@ -107,6 +107,9 @@ function memoryLedgers() {
 		},
 		readSources: () => [...sources.values()].map((s) => ({ ...s, extractions: [...(s.extractions ?? [])] })),
 		deleteSources: (ids: ReadonlySet<string>) => [...ids].reduce((count, id) => count + Number(sources.delete(id)), 0),
+		saveSourceChunks: () => {},
+		readSourceChunk: () => null,
+		deleteSourceChunks: () => {},
 		appendSourceUsage: (id: string, entry: ExtractionRunUsage) => {
 			const source = sources.get(id);
 			if (!source) return;
@@ -1206,7 +1209,7 @@ describe("message anchors (session propositions carry their passage's id)", () =
 		assert.deepEqual(await pipeline.importNotes({ filePath: "/vault/anchor-free.md", text: NOTES_TEXT }), { nodes: 1, chains: 0 });
 		assert.deepEqual(
 			ledgers.readNodes()[0]!.provenance,
-			[{ chatId: ledgers.readSources()[0]!.id, messageId: "" }],
+			[{ chatId: ledgers.readSources()[0]!.id, messageId: "", chunk: { importKey: String(Date.parse(ledgers.readSources()[0]!.importedAt)), index: 0 } }],
 			"notes provenance stays chat-level — the file is the anchor",
 		);
 
@@ -1225,7 +1228,7 @@ describe("message anchors (session propositions carry their passage's id)", () =
 		assert.deepEqual(await second.importNotes({ filePath: "/vault/stray-anchor.md", text: NOTES_TEXT }), { nodes: 1, chains: 0 });
 		const secondSource = ledgers.readSources()[1]!;
 		const strayNode = ledgers.readNodes().find((n) => n.provenance.some((pt) => pt.chatId === secondSource.id))!;
-		assert.deepEqual(strayNode.provenance, [{ chatId: secondSource.id, messageId: "" }], "the stray anchor was stripped before the merger");
+		assert.deepEqual(strayNode.provenance, [{ chatId: secondSource.id, messageId: "", chunk: { importKey: String(Date.parse(secondSource.importedAt)), index: 0 } }], "the stray anchor was stripped before the merger");
 	});
 
 	it("coverage fingerprints are UNCHANGED by the anchors: the stored fps equal the plain coverage-slot hashes", async () => {
@@ -1616,7 +1619,7 @@ describe("the notes front door (importNotes — format-agnostic)", () => {
 		// message anchors.
 		const node = ledgers.readNodes()[0]!;
 		assert.equal(node.statement, "Vim starts in Normal mode, where keys are commands.");
-		assert.deepEqual(node.provenance, [{ chatId: source.id, messageId: "" }]);
+		assert.deepEqual(node.provenance, [{ chatId: source.id, messageId: "", chunk: { importKey: String(Date.parse(source.importedAt)), index: 0 } }]);
 		// The checkpoint stamps the import.
 		assert.equal(ledgers.readCheckpoints()[0]!.chatId, source.id);
 	});

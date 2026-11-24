@@ -21,6 +21,7 @@ import type {
 	ExtractionRunUsage,
 	ExtractionStageUsage,
 	SessionFindings,
+	SourceChunkMeta,
 } from "../../core/contracts.ts";
 import { getGraph, mergeFindings, type DerivedGraph, type EmissionStats, type GraphDeps } from "../../core/graph.ts";
 import type { GraphStore } from "../../core/ports.ts";
@@ -743,12 +744,37 @@ export interface ExtractionPipelineDeps extends GraphDeps, ExtractionModels {
 	getChunkTokens?: () => number;
 }
 
+/** One notes chunk: its text plus where it sits in the import's text. */
+interface NotesChunk extends SourceChunkMeta {
+	text: string;
+}
+
+/** Fork (#806 B): each page block's char span in the joined text, located in
+ *  order, so pages that don't reproduce the text give fewer (or no) page
+ *  ranges, never wrong ones. */
+function pageSpans(text: string, pages?: NotesImportInput["pages"]): { number: number; start: number; end: number }[] {
+	const out: { number: number; start: number; end: number }[] = [];
+	let from = 0;
+	for (const page of pages ?? []) {
+		if (page.text.length === 0) continue;
+		const start = text.indexOf(page.text, from);
+		if (start < 0) continue;
+		out.push({ number: page.number, start, end: start + page.text.length });
+		from = start + page.text.length;
+	}
+	return out;
+}
+
 export interface NotesImportInput {
 	/** The source's file path — its identity (deterministic src id) AND its
 	 *  provenance label in the detail card. */
 	filePath: string;
 	/** The file's raw content, VERBATIM — any format. */
 	text: string;
+	/** Fork (#806 B): PDF imports: the converter's text pages; their blocks
+	 *  joined by "\n\n" are `text`. Gives each chunk its page range without
+	 *  parsing markers out of the text. Absent for text/Markdown. */
+	pages?: { number: number; text: string }[];
 }
 
 /** A notes import did not finish. Earlier graph writes and billed usage are
@@ -1241,20 +1267,42 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 	 * weak model — 26 propositions, structure bleed mid-emission).
 	 * Greedy by line, chars/4 like every other estimate in the app; a
 	 * single over-budget line rides alone (never split a line). */
-	function chunkNotes(text: string, budget: number): string[] {
+	function chunkNotes(text: string, budget: number, pages?: NotesImportInput["pages"]): NotesChunk[] {
 		if (text.trim().length === 0) return [];
-		const out: string[] = [];
-		let current = "";
+		// Fork (#806 B): each chunk is text.slice(start, end) (its lines joined
+		// by "\n", as before) plus its 1-based line range and, for PDFs, the
+		// first/last page whose span overlaps it.
+		const spans = pageSpans(text, pages);
+		const out: NotesChunk[] = [];
+		let start = 0;
+		let end = 0;
+		let lineStart = 1;
+		let lineEnd = 0;
+		const flush = (): void => {
+			const chunkText = text.slice(start, end);
+			if (chunkText.trim().length === 0) return;
+			const overlap = spans.filter((s) => s.start < end && s.end > start);
+			out.push({
+				text: chunkText, index: out.length, start, end, lineStart, lineEnd,
+				...(overlap.length > 0 ? { pageStart: overlap[0]!.number, pageEnd: overlap[overlap.length - 1]!.number } : {}),
+			});
+		};
+		let pos = 0;
+		let lineNo = 0;
 		for (const line of text.split("\n")) {
-			const candidate = current.length === 0 ? line : current + "\n" + line;
-			if (current.length > 0 && Math.ceil(candidate.length / 4) > budget) {
-				out.push(current);
-				current = line;
+			lineNo++;
+			const lineEndPos = pos + line.length;
+			if (lineNo === 1) {
+				start = pos; lineStart = lineNo; end = lineEndPos; lineEnd = lineNo;
+			} else if (end > start && Math.ceil((lineEndPos - start) / 4) > budget) {
+				flush();
+				start = pos; lineStart = lineNo; end = lineEndPos; lineEnd = lineNo;
 			} else {
-				current = candidate;
+				end = lineEndPos; lineEnd = lineNo;
 			}
+			pos = lineEndPos + 1;
 		}
-		if (current.trim().length > 0) out.push(current);
+		flush();
 		return out;
 	}
 
@@ -1296,7 +1344,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 	// The notes auditor is the SAME identity-linker as the chat one (one
 	// schema now that attribution is gone) — audit() above, verbatim.
 
-	async function runNotesExtraction(input: { id: string; filePath: string; text: string; importedAt: string }): Promise<EmissionStats> {
+	async function runNotesExtraction(input: { id: string; filePath: string; text: string; pages?: NotesImportInput["pages"]; importedAt: string; importKey: string }): Promise<EmissionStats> {
 		const { id } = input;
 		// importNotes owns the source exclusion, including metadata and cleanup.
 		const t0 = performance.now();
@@ -1311,7 +1359,13 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 			// whole large file. Abort mid-run keeps earlier chunks merged
 			// (same doctrine as chat batches).
 			const chunkTokens = deps.getChunkTokens?.() ?? FACTORY_SETTINGS.graph.extractionChunkTokens;
-			const chunks = chunkNotes(input.text, chunkTokens);
+			const chunks = chunkNotes(input.text, chunkTokens, input.pages);
+			// Fork (#806 B): store the import's text + chunk table BEFORE any
+			// extraction, so every anchor written below resolves.
+			graphStore.saveSourceChunks({
+				sourceId: id, importKey: input.importKey, importedAt: input.importedAt, filePath: input.filePath, text: input.text,
+				chunks: chunks.map(({ text: _text, ...meta }) => meta),
+			});
 			console.info(
 				`[extraction ${id}] notes pipeline start (${input.filePath}) — ${chunks.length} chunk(s) of ≤${chunkTokens} tok`,
 			);
@@ -1335,7 +1389,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 						value: await runJob({ id, kind: "notes", label: input.filePath, part }, async (jobKey) => {
 							setPhase(jobKey, "extracting", "notes", input.filePath, part);
 							chunkSignal = runningExtractions.get(jobKey)?.controller.signal;
-							const findings = await notesExtract(jobKey, { ...input, text: chunk, part });
+							const findings = await notesExtract(jobKey, { id, filePath: input.filePath, text: chunk.text, part });
 							// SERIALIZED AUDIT (owner, 2026-09-28): audit + merge one
 							// at a time, process-wide — the auditor explores the graph
 							// as it stands AFTER every earlier job's merge. Reacquired
@@ -1349,7 +1403,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 									findings,
 									auditResult,
 									{ chatStore, graphStore },
-									{ foldedAt: input.importedAt },
+									{ foldedAt: input.importedAt, chunk: { importKey: input.importKey, index: chunk.index } },
 								);
 								// Capture the committed merge BEFORE layout/usage can fail.
 								mergedStats.nodes += merged.nodes;
@@ -1413,9 +1467,11 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 		if (inFlight.has(id)) throw new NotesImportError("busy", { nodes: 0, chains: 0 }, "This file is already being imported. Try again when it finishes.");
 		inFlight.add(id);
 		try {
-			const importedAt = new Date().toISOString();
+			const now = Date.now();
+			const importedAt = new Date(now).toISOString();
+			const importKey = String(now); // Fork (#806 B): same instant as importedAt
 			graphStore.upsertSource({ id, filePath: input.filePath, importedAt });
-			return await runNotesExtraction({ id, ...input, importedAt });
+			return await runNotesExtraction({ id, ...input, importedAt, importKey });
 		} catch (err) {
 			if (err instanceof NotesImportError || err instanceof ModelsNotConfiguredError || err instanceof ProviderKeyMissingError) throw err;
 			throw new NotesImportError("failed", { nodes: 0, chains: 0 }, err instanceof Error ? err.message : String(err), { cause: err });

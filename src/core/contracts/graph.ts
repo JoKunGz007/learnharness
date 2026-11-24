@@ -71,6 +71,45 @@ export interface ProvenancePoint {
 	 *  recorded through the mapping line + the source record). */
 	chatId: string;
 	messageId: string;
+	/** Fork (#806 B): notes imports only — the stored chunk this point was
+	 *  extracted from (`sources/<chatId>/<importKey>.json`, chunk `index`).
+	 *  Absent on chat points and on pre-anchor imports. */
+	chunk?: { importKey: string; index: number };
+}
+
+/** Fork (#806 B): one chunk's span inside a stored import's text. */
+export interface SourceChunkMeta {
+	index: number;
+	/** Char offsets into `text` (end exclusive). */
+	start: number;
+	end: number;
+	/** 1-based inclusive line range. */
+	lineStart: number;
+	lineEnd: number;
+	/** PDF imports: first/last page overlapping the chunk. */
+	pageStart?: number;
+	pageEnd?: number;
+}
+
+/** Fork (#806 B): the stored copy of one notes import
+ *  (`<graph dir>/sources/<sourceId>/<importKey>.json`). importKey is the
+ *  import's epoch-ms timestamp as digits (same instant as importedAt). */
+export interface SourceChunksFile {
+	sourceId: string;
+	importKey: string;
+	importedAt: string;
+	filePath: string;
+	text: string;
+	chunks: SourceChunkMeta[];
+}
+
+/** What readSourceChunk returns: the chunk's text and where it sits. */
+export interface SourceChunkView {
+	text: string;
+	lineStart: number;
+	lineEnd: number;
+	pageStart?: number;
+	pageEnd?: number;
 }
 
 /** Imported notes source processed by the extractor → auditor → merger pipeline.

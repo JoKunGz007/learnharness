@@ -34,7 +34,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { LEDGER_FILES, POSITIONS_FILE, SOURCES_FILE } from "../../config.ts";
+import { LEDGER_FILES, POSITIONS_FILE, SOURCES_FILE, SOURCE_CHUNKS_DIR } from "../../config.ts";
 import { assertGraphFormat, ensureGraphFormat } from "./graph-format.ts";
 import { removeLeftoverTemps, writeFileAtomicSync } from "./atomic-write.ts";
 import type {
@@ -47,6 +47,8 @@ import type {
 	CoverageEntry,
 	SessionCheckpoint,
 	VerificationLine,
+	SourceChunksFile,
+	SourceChunkView,
 } from "../core/contracts.ts";
 import type { GraphStore } from "../core/ports.ts";
 
@@ -85,6 +87,11 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 const isString = (v: unknown): v is string => typeof v === "string";
 
+/** Fork (#806 B): ids that become path segments (sources/<sourceId>/<importKey>.json). */
+const SAFE_ID = /^[A-Za-z0-9_-]+$/;
+const chunkFile = (sourceId: string, importKey: string): string | null =>
+	SAFE_ID.test(sourceId) && SAFE_ID.test(importKey) ? path.join(SOURCE_CHUNKS_DIR, sourceId, `${importKey}.json`) : null;
+
 /** Strict shape guards — anything not matching a W4 ledger shape is skipped. */
 function readValid<T>(file: string, isValid: (v: unknown) => v is T): T[] {
 	assertGraphFormat(); // honest refusal on a newer-stamped data dir
@@ -93,7 +100,9 @@ function readValid<T>(file: string, isValid: (v: unknown) => v is T): T[] {
 
 /** Provenance points are (chatId, messageId) pairs — message-granular. */
 const isProvenancePoint = (v: unknown): v is ProvenancePoint =>
-	isRecord(v) && isString(v.chatId) && isString(v.messageId);
+	isRecord(v) && isString(v.chatId) && isString(v.messageId) &&
+	(v.chunk === undefined || (isRecord(v.chunk) && isString(v.chunk.importKey) && SAFE_ID.test(v.chunk.importKey) &&
+		typeof v.chunk.index === "number" && Number.isInteger(v.chunk.index) && v.chunk.index >= 0));
 
 
 const isGraphNode = (v: unknown): v is GraphNode =>
@@ -204,6 +213,37 @@ export const graphStore: GraphStore = {
 		writeFileAtomicSync(SOURCES_FILE, JSON.stringify(all, null, "\t"));
 		removeLeftoverTemps(SOURCES_FILE); // crash leftovers would still hold the deleted sources
 		return removed;
+	},
+	// ── Fork (#806 B): stored import text + chunk table ──
+	saveSourceChunks(file: SourceChunksFile): void {
+		const target = chunkFile(file.sourceId, file.importKey);
+		if (!target) throw new Error("Unsafe source chunk id.");
+		assertGraphFormat();
+		fs.mkdirSync(path.dirname(target), { recursive: true });
+		ensureGraphFormat();
+		writeFileAtomicSync(target, JSON.stringify(file));
+	},
+	readSourceChunk(sourceId: string, importKey: string, index: number): SourceChunkView | null {
+		const target = chunkFile(sourceId, importKey);
+		if (!target) return null;
+		let parsed: unknown;
+		try { parsed = JSON.parse(fs.readFileSync(target, "utf-8")); } catch { return null; }
+		if (!isRecord(parsed) || !isString(parsed.text) || !Array.isArray(parsed.chunks)) return null;
+		const c: unknown = parsed.chunks.find((x) => isRecord(x) && x.index === index);
+		if (!isRecord(c) || typeof c.start !== "number" || typeof c.end !== "number" || typeof c.lineStart !== "number" || typeof c.lineEnd !== "number") return null;
+		return {
+			text: parsed.text.slice(c.start, c.end),
+			lineStart: c.lineStart,
+			lineEnd: c.lineEnd,
+			...(typeof c.pageStart === "number" ? { pageStart: c.pageStart } : {}),
+			...(typeof c.pageEnd === "number" ? { pageEnd: c.pageEnd } : {}),
+		};
+	},
+	deleteSourceChunks(sourceIds: ReadonlySet<string>): void {
+		for (const id of sourceIds) {
+			if (!SAFE_ID.test(id)) continue;
+			fs.rmSync(path.join(SOURCE_CHUNKS_DIR, id), { recursive: true, force: true });
+		}
 	},
 	/** Idempotent per startedAt — same discipline as chats.appendExtractionUsage. */
 	appendSourceUsage(id: string, entry: ExtractionRunUsage): void {

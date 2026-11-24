@@ -31,6 +31,8 @@ import type {
 	TurnUsage,
 	NotesSource,
 	VerificationLine,
+	SourceChunksFile,
+	SourceChunkView,
 } from "./contracts.ts";
 import type { UserSettings } from "./settings.ts";
 import type { Theme, ThemeFile } from "./themes.ts";
@@ -140,6 +142,12 @@ export interface GraphStore {
 	readSources(): NotesSource[];
 	/** Remove imported-source bookkeeping only; the service removes graph traces first. */
 	deleteSources(ids: ReadonlySet<string>): number;
+	/** Fork (#806 B): store one import's text + chunk table (atomic). Throws on an unsafe sourceId/importKey. */
+	saveSourceChunks(file: SourceChunksFile): void;
+	/** Fork (#806 B): one stored chunk, or null when the file/chunk is missing or the ids are unsafe. */
+	readSourceChunk(sourceId: string, importKey: string, index: number): SourceChunkView | null;
+	/** Fork (#806 B): remove these sources' chunk folders (all their imports). */
+	deleteSourceChunks(sourceIds: ReadonlySet<string>): void;
 	/** Append one run's usage to a source record — idempotent per
 	 *  startedAt, mirroring ChatRecord.extractions. */
 	appendSourceUsage(id: string, entry: ExtractionRunUsage): void;

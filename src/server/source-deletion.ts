@@ -39,7 +39,9 @@ export function deleteSources(raw: unknown): SourceDirectory & { graphRevision: 
 	// Clear the whole selected batch in one graph rewrite. Kept chats lose
 	// coverage/checkpoints too, so their unchanged messages can be re-extracted.
 	deleteSourcesTraces(stores.graphStore, new Set(targets.map((s) => s.id)), "delete-nodes");
-	stores.graphStore.deleteSources(new Set(targets.filter((s) => s.kind === "notes").map((s) => s.id)));
+	const notesIds = new Set(targets.filter((s) => s.kind === "notes").map((s) => s.id));
+	stores.graphStore.deleteSources(notesIds);
+	stores.graphStore.deleteSourceChunks(notesIds); // Fork (#806 B)
 	const removed = new Set(request.sourceIds.filter((id) => !directory.sources.some((s) => s.id === id)));
 	for (const entry of targets) {
 		if (entry.kind === "chat" && request.deleteSessions) {
