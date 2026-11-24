@@ -341,9 +341,9 @@ describe("serializeForSummary + buildCompactionPrompt", () => {
 		assert.ok(serializeForSummary([marker]).includes("LEGACY SUMMARY"));
 	});
 
-	it("the prompt demands the four sections in order and carries the plan tree verbatim", () => {
+	it("the prompt demands the five sections in order and carries the plan tree verbatim", () => {
 		const prompt = buildCompactionPrompt({ spanText: "TRANSCRIPT", planTreeText: "- [done] A (a1)\n- A → B", kind: "teach" });
-		const order = ["The learner's understanding", "The teaching arc", "The plan dependency tree", "The current moment"].map(
+		const order = ["The learner's understanding", "The teaching arc", "The plan dependency tree", "Standing instructions and course context", "The current moment"].map(
 			(s) => prompt.indexOf(s),
 		);
 		assert.deepEqual(order, [...order].sort((a, b) => a - b), "sections appear in the ruled order");

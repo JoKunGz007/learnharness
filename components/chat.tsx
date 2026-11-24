@@ -12,6 +12,7 @@ import { findSurfaceBoundary } from "./plugin-surface-targets";
 import { scheduleOpeningSubmission } from "./plugin-submission-opening";
 import { activeProblemOccurrenceOf, buildAnswer, toClientQuestion, type PluginSubmission, type PluginSubmissionTarget, type QuestionData } from "@/src/core";
 import { validatePluginBuiltinSubmissionAnswer } from "@/src/core";
+import { formatAway } from "@/src/core"; // Fork: welcome-back line
 import { visibleQueuedSteers } from "@/components/session-core";
 import { SetupDialog } from "@/components/setup-dialog";
 import { Hint } from "@/components/ui/hint";
@@ -1827,6 +1828,11 @@ export function Chat({
 											}
 											case "data-practice-thinking":
 												return <ThinkingCard key={pi} data={part.data as PracticeThinkingData} />;
+											case "data-welcome-back": {
+												// Fork: the welcome-back check's quiet line.
+												const gapMs = (part.data as { gapMs?: number } | null)?.gapMs ?? 0;
+												return <SystemLine key={pi} testId="welcome-back-line">Welcome-back check · {formatAway(gapMs)} since last turn</SystemLine>;
+											}
 											case "data-practice-next":
 												// The learner's move-on signal (owner round 16): a compact
 												// centered mono-caps line — chrome, the dismissal register.

@@ -403,6 +403,7 @@ export function buildCompactionPrompt(input: {
 }): string {
 	const planSection =
 		input.planTreeText ?? "No plan tree exists in this session (nothing was persisted).";
+	// Fork: the "Standing instructions" section; the 2026-11-02 test showed Haiku dropping rules and values.
 	return `You are compacting the earlier part of a tutoring session — writing the summary your future self will read INSTEAD of that transcript. Everything before the cut is replaced by what you write; everything after stays verbatim. The learner's transcript below labels the learner as [LEARNER], the tutoring agent as [TUTOR], tool traffic as [RESULT …]/[SYSTEM NOTE].
 
 Write the summary with EXACTLY these sections, in this order:
@@ -417,6 +418,9 @@ How the session progressed: what was covered and in what order, which explanatio
 Reproduce the session's current plan tree verbatim from the structure below — do not drop nodes, edges, or statuses.
 
 ${planSection}
+
+## Standing instructions and course context
+Every standing rule the learner gave that still applies — what to do or avoid, how they want to be taught, folders or tools not to touch — and the course context later turns depend on: course and project paths, file names, fixed settings and values (seeds, flags, keyboard shortcuts, library options). Quote rules and values exactly; omit none, even minor ones. Write "None stated." if there are none.
 
 ## The current moment
 What is happening RIGHT NOW at the cut: any question or problem awaiting the learner's answer, any commitment the agent has made that a later turn must honor, and the immediate next step.

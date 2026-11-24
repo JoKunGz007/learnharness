@@ -257,6 +257,7 @@ export function resolveSettings(record: UserSettings | null): EffectiveSettings 
 		compaction: {
 			thresholdTokens: record?.compaction?.thresholdTokens ?? FACTORY_SETTINGS.compaction.thresholdTokens,
 			includeReasoning: record?.compaction?.includeReasoning ?? FACTORY_SETTINGS.compaction.includeReasoning,
+			welcomeBack: record?.compaction?.welcomeBack ?? FACTORY_SETTINGS.compaction.welcomeBack, // Fork
 		},
 		customProvider: {
 			baseUrl: record?.customProvider?.baseUrl ?? "",

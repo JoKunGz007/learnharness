@@ -24,6 +24,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-019 — 2026-11-24 — Fixes from a review of the fork's claude-code code
 - D-020 — 2026-11-24 — Repo public; share builds as GitHub Releases on the fork
 - D-021 — 2026-11-24 — Refuse background jobs at dispatch when background use is off
+- D-022 — 2026-11-24 — Welcome-back check for Teach chats; compaction keeps standing instructions
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -168,3 +169,10 @@ Status: accepted (owner: "a, leave as is. b, refuse at dispatch", 2026-11-24).
 Decision: `jobDispatchRefusal` (`src/server/chat-handler.ts`), passed as `JobToolContext.admit` at the three job-context sites, refuses a job in `dispatch()` before `createJob` when its role's provider fails `connectionBackgroundAllowed`; the tutor gets the existing refusal text (claude-code: `CLAUDE_CODE_BACKGROUND_OFF`, now shared with `models.ts`) as a tool error that turn. The in-run check in `models.ts` stays as a backstop. Delivery holds (deferred wake, open question, parks) stay as upstream.
 Rationale: rejected auto-retry when the toggle returns (spends limits unattended) and a Retry button (new UI). Holds: the fix would break upstream's tested rule, and any learner message delivers a held result.
 Evidence: `tests/claude-code-gate.test.ts` new test (refused with 0 jobs/0 spawns off; 1/1 on), 5/5; `subscription-background` 4/4; `job-delivery-recovery` 18/18; `jobs` 57/57; `npx tsc --noEmit` clean (`.tmp/dispatch-*.log`).
+
+## D-022 — 2026-11-24 — Welcome-back check for Teach chats; compaction keeps standing instructions
+Status: accepted (owner, 2026-11-24: 6 h fixed, on by default and skippable, Teach only, small transcript line, Settings → Agent "Welcome-back check"; compaction change "regardless of model").
+Decision: (1) `src/core/welcome-back.ts`: on the first `text`/`answer` input to a Teach chat whose newest message (compaction and side-question markers excluded) is ≥ 6 h old and that has an assistant reply, `withWelcomeBack` (called in `chat-handler.ts` on the pre-input record) adds a `welcome-back` marker telling the tutor to open with 2–3 recall questions and offer "skip". Text inputs get it before the message; answers after the tool result (provider adjacency). The transcript shows "Welcome-back check · N h since last turn" (days from 48 h, rounded). Setting `compaction.welcomeBack` (default true), toggle in the Compaction group. (2) `buildCompactionPrompt` has a "Standing instructions and course context" section, for every model (the 2026-11-02 test showed Haiku dropping rules and values).
+Rationale: resuming the same chat after the cache expires costs ≈ 0.6–1.6% of a 5-hour limit (Sonnet, 60k–150k), so the problem is forgetting, not cost. The toggle rides the compaction PUT to avoid a new route.
+Consequences: question poses end a run, so the 2–3 questions come one per turn. Not covered: `plugin-question-answer` inputs; parallel answers after a break carry the marker on the last answer only.
+Evidence: `tests/welcome-back.test.ts` 12/12; welcome-back + compaction + chat-flow 89/89; `npx tsc --noEmit` clean. Live 2026-11-24, dev chat `chat_mwg6y3x8_6bcd0108`, `claude-code` Haiku 4.5, one turn after 7.7 h: line "· 8 h since last turn", tutor's first move a recall `probe` with a "Skip, let me continue" option. The compaction section has not yet run in a live compaction.

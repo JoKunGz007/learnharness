@@ -180,3 +180,15 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: many files here are CRLF (`core.autocrlf=true`); patterns with `\n` don't match `\r\n`.
 - Avoid: open with `newline=''` and match `\r?\n`, or detect the file's line ending first. Scratch tests outside the repo that junction `node_modules` in: remove the junction with `cmd /c rmdir`, never `rm -rf` (that deletes into the repo's `node_modules`).
 - Verify: `git diff --stat` shows the expected file changed.
+
+## `gh issue view N --comments` fails on upstream
+- Symptom: `gh issue view <N> -R amosblomqvist/learnharness --comments` exits with a GraphQL error about Projects (classic).
+- Cause: gh's default issue view queries the retired Projects-classic field.
+- Avoid: `gh issue view <N> -R amosblomqvist/learnharness --json title,body,comments -q …`.
+- Verify: the `--json` form prints the body and comments.
+
+## `tsc` reports TS2589 once, then passes
+- Symptom: `npx tsc --noEmit` reports TS2589 ("type instantiation is excessively deep") at `src/core/plugin-view-context.ts:67`; a re-run with identical code is clean.
+- Cause: unknown; seen once (2026-11-24, welcome-back build).
+- Avoid: re-run before debugging. A fresh `git worktree` of HEAD is no typecheck baseline: it fails on the plugin folders until `npm run plugins:setup` runs there.
+- Verify: a second `npx tsc --noEmit` exits 0.

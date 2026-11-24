@@ -65,6 +65,7 @@ import { samePluginQuestionOccurrence } from "../core/plugin-questions.ts";
 import { composeInstructions } from "../agent/teacher-agent.ts";
 import { ensureCompacted, kickCompaction, effectiveThresholdTokens, projectedContextTokens, compactionInFlight } from "./compaction.ts";
 import { COMPACTION_RESERVE_TOKENS } from "../core/compaction.ts";
+import { withWelcomeBack } from "../core/welcome-back.ts"; // Fork
 import { catalogContextLimits, refreshConnectionCatalog } from "./model-catalog.ts";
 import { emit } from "../core/events.ts";
 import { settledTurnResponse } from "./turn-runs.ts";
@@ -537,7 +538,8 @@ export async function handleChatInput(
 			} else appends = submission.finish({ id: chatId, kind: record.kind, messages: record.messages });
 		} else appends = input.type === "steers"
 			? input.steers.filter((s) => !steerDelivered(record.messages, s.id))
-			: inputAppends(record, input);
+			// Fork: welcome-back check — decided on the record BEFORE this input; a refused input throws first, leaving nothing.
+			: withWelcomeBack(record, input.type, inputAppends(record, input), Date.now(), effective.compaction.welcomeBack);
 	} catch (err) {
 		if (err instanceof ChatInputError) {
 			return Response.json({ error: err.message }, { status: 400 });

@@ -477,6 +477,11 @@ export function parseCompactionSettingsBody(body: unknown): SettingsBodyResult<C
 		}
 		settings.includeReasoning = raw.includeReasoning;
 	}
+	// Fork: the welcome-back check toggle rides this section's PUT.
+	if (raw.welcomeBack !== undefined) {
+		if (typeof raw.welcomeBack !== "boolean") return { ok: false, error: "welcomeBack must be true or false" };
+		settings.welcomeBack = raw.welcomeBack;
+	}
 	if (raw.thresholdTokens !== undefined) {
 		if (typeof raw.thresholdTokens !== "number" || !Number.isFinite(raw.thresholdTokens)) {
 			return { ok: false, error: "thresholdTokens must be a number" };

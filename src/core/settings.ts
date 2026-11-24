@@ -535,6 +535,9 @@ export interface CompactionSettings {
 	/** Use saved output usage for replayable same-model Responses reasoning.
 	 *  Absent = false: preserve the original readable-content heuristic. */
 	includeReasoning?: boolean;
+	/** Fork: the welcome-back check (recall questions after 6 h away). Lives in
+	 *  the compaction section to reuse its PUT route; absent = ON. */
+	welcomeBack?: boolean;
 }
 
 /** THE record. Every section optional (delta); unknown top-level keys are
@@ -609,7 +612,7 @@ export const FACTORY_SETTINGS: FactorySettings = {
 		mdRendering: { headingWeight: 900, boldColor: null, italicColor: null },
 	},
 	graph: { enabled: true, rendering: true, extractionChunkTokens: 4096 },
-	compaction: { thresholdTokens: 150_000, includeReasoning: false },
+	compaction: { thresholdTokens: 150_000, includeReasoning: false, welcomeBack: true }, // Fork: welcomeBack
 };
 
 /** The chunk budget's validated floor (GraphSettings.extractionChunkTokens
@@ -921,6 +924,8 @@ function sanitizeCompaction(raw: Record<string, unknown>): CompactionSettings {
 	const out: CompactionSettings = {};
 	const includeReasoning = boolOrDrop(raw.includeReasoning);
 	if (includeReasoning !== undefined) out.includeReasoning = includeReasoning;
+	const welcomeBack = boolOrDrop(raw.welcomeBack); // Fork: welcome-back check
+	if (welcomeBack !== undefined) out.welcomeBack = welcomeBack;
 	const rawTokens = raw.thresholdTokens;
 	if (typeof rawTokens === "number" && Number.isFinite(rawTokens) && rawTokens > 0) {
 		out.thresholdTokens = Math.max(COMPACTION_THRESHOLD_FLOOR, Math.floor(rawTokens));

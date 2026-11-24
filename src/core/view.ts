@@ -517,6 +517,15 @@ function projectMarker(marker: LhMarkerMessage, out: LhViewMessage[]): void {
 			});
 			return;
 		}
+		case "welcome-back": {
+			// Fork: a quiet line (the model-facing text is never shown).
+			out.push({
+				id: marker.id,
+				role: "user",
+				parts: [{ type: "data-welcome-back", id: `wb_${marker.id}`, data: marker.details }],
+			});
+			return;
+		}
 		case "side-question":
 		case "side-question-told":
 			// Raw context entries do not split the teaching segment or render

@@ -1015,6 +1015,18 @@ export function AgentSection({
 						onChange={(includeReasoning) => onCompactionChange({ ...compaction, includeReasoning })}
 					/>
 				</SettingsRow>
+				{/* Fork: welcome-back check (rides the compaction section's PUT). */}
+				<SettingsRow
+					label="Welcome-back check"
+					hint="After 6 h away, the tutor opens with 2–3 recall questions"
+					testid="compaction-row-welcome-back"
+				>
+					<Toggle
+						label="Welcome-back check"
+						checked={resolvedCompaction.welcomeBack}
+						onChange={(welcomeBack) => onCompactionChange({ ...compaction, welcomeBack })}
+					/>
+				</SettingsRow>
 			</SettingsGroup>
 
 			<SettingsGroup label="System prompts" testid="group-prompts">
