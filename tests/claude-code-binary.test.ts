@@ -98,3 +98,20 @@ test("relative LH_CLAUDE_BIN resolves against cwd", () => {
 	assert.equal(resolveClaudeBinary({ env: { LH_CLAUDE_BIN: "bin/claude" }, platform: "linux", homeDir: HOME, cwd: "/srv/app", isExecutable: (p) => p === "/srv/app/bin/claude" }), "/srv/app/bin/claude");
 	assert.equal(resolveClaudeBinary({ env: { LH_CLAUDE_BIN: ".\\bin\\claude.exe" }, platform: "win32", homeDir: "C:\\Users\\u", cwd: "C:\\server", isExecutable: (p) => p === "C:\\server\\bin\\claude.exe" }), "C:\\server\\bin\\claude.exe");
 });
+
+// Fork: a custom npm prefix holds the native claude.exe too (Windows globals live in <prefix>\node_modules).
+test("Windows native claude.exe follows npm_config_prefix", () => {
+	const win = (...parts: string[]) => parts.join(String.fromCharCode(92));
+	const home = win("C:", "Users", "u"), prefix = win("D:", "npm");
+	const exe = win(prefix, "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe");
+	assert.equal(resolveWith([exe], { APPDATA: win(home, "AppData", "Roaming"), npm_config_prefix: prefix, PATH: prefix }, "win32", home), exe);
+});
+
+// Fork: an unusable override is reported once, not silently ignored.
+test("an unusable LH_CLAUDE_BIN warns once per value", (t) => {
+	const warn = t.mock.method(console, "warn", () => {});
+	resolveWith(["/usr/bin/claude"], { PATH: "/usr/bin", LH_CLAUDE_BIN: "/x/warn-once" });
+	resolveWith(["/usr/bin/claude"], { PATH: "/usr/bin", LH_CLAUDE_BIN: "/x/warn-once" });
+	assert.equal(warn.mock.callCount(), 1);
+	assert.match(String(warn.mock.calls[0]!.arguments[0]), /LH_CLAUDE_BIN=\/x\/warn-once is not an executable/);
+});

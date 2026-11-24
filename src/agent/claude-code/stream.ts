@@ -1,5 +1,5 @@
 import { type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -438,10 +438,21 @@ class ClaudeTurn {
 
 type TurnFiles = { cwd: string; privateDir: string; systemPromptFile: string; mcpConfigFile: string };
 
+/** Fork: mkdir keeps an existing folder's owner and mode, and a shared POSIX /tmp lets another
+ *  account create this path first. Refuse a folder that is not ours alone. (Windows temp is per user.) */
+export async function assertOwnWorkspace(dir: string, platform: NodeJS.Platform = process.platform, uid = process.getuid?.()): Promise<void> {
+	if (platform === "win32" || uid === undefined) return;
+	const info = await lstat(dir);
+	if (!info.isDirectory() || info.uid !== uid || (info.mode & 0o022) !== 0) {
+		throw new Error(`Claude Code workspace ${dir} is not a private folder owned by this user; remove it and try again.`);
+	}
+}
+
 async function createTurnFiles(systemPrompt: string, mcpConfig: string): Promise<TurnFiles> {
 	// Fork: one fixed empty working folder. Claude Code puts its cwd in the prompt, so a per-turn folder broke the prompt cache.
 	const cwd = join(tmpdir(), "learnharness-claude-workspace");
 	await mkdir(cwd, { recursive: true, mode: 0o700 });
+	await assertOwnWorkspace(cwd);
 	let privateDir: string | undefined;
 	try {
 		privateDir = await mkdtemp(join(tmpdir(), "claude-code-private-"));

@@ -15,6 +15,12 @@ import { themeStore } from "../store/themes.ts";
 import { resolveSettings, type EffectiveSettings } from "../core/settings-resolution.ts";
 import { syncCustomProvider } from "./custom-provider.ts";
 import { configureWorkerRequestAdmission } from "../agent/worker-request-admission.ts";
+import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
+
+// Fork: the claude-code background gate's uninstalled default allows everything; every server route
+// loads this module, so no dispatch runs before the real gate is in place.
+installClaudeCodeBackgroundGate();
+
 /** The wired adapters. Satisfies core/graph.ts's GraphDeps structurally. */
 export const stores = {
 	chatStore,

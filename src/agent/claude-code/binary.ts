@@ -19,6 +19,7 @@ type SearchSpec = {
 function getWindowsSearchSpec(env: BinaryLookup["env"], homeDir: string): SearchSpec {
 	const paths = path.win32;
 	const appData = env.APPDATA ?? paths.join(homeDir, "AppData", "Roaming");
+	const npmPrefix = env.npm_config_prefix ?? paths.join(appData, "npm");
 
 	return {
 		paths,
@@ -28,9 +29,9 @@ function getWindowsSearchSpec(env: BinaryLookup["env"], homeDir: string): Search
 		knownDirs: [
 			paths.join(homeDir, ".local", "bin"),
 			paths.join(homeDir, ".claude", "local"),
-			env.npm_config_prefix ?? paths.join(appData, "npm"),
+			npmPrefix,
 			// Fork: npm installs only put a claude.cmd shim on PATH; the native claude.exe sits inside the package.
-			paths.join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code", "bin"),
+			paths.join(npmPrefix, "node_modules", "@anthropic-ai", "claude-code", "bin"),
 		],
 	};
 }
@@ -60,10 +61,20 @@ function getPosixSearchSpec(env: BinaryLookup["env"], homeDir: string): SearchSp
 	};
 }
 
+const warnedOverrides = new Set<string>(); // Fork
+
 export function resolveClaudeBinary({ env, platform, homeDir, cwd = process.cwd(), isExecutable }: BinaryLookup): string | null {
 	// Fork: LH_CLAUDE_BIN overrides discovery.
 	const override = env.LH_CLAUDE_BIN?.trim();
-	if (override) { const resolved = (platform === "win32" ? path.win32 : path.posix).resolve(cwd, override); if (isExecutable(resolved)) return resolved; } // Fork: absolute, like discovered paths
+	if (override) { // Fork: absolute, like discovered paths
+		const resolved = (platform === "win32" ? path.win32 : path.posix).resolve(cwd, override);
+		if (isExecutable(resolved)) return resolved;
+		// Fork: say so once per value (this runs on every lookup), then fall back to discovery.
+		if (!warnedOverrides.has(resolved)) {
+			warnedOverrides.add(resolved);
+			console.warn(`[claude-code] LH_CLAUDE_BIN=${resolved} is not an executable file; using normal discovery instead.`);
+		}
+	}
 
 	const { paths, names, knownDirs } = platform === "win32"
 		? getWindowsSearchSpec(env, homeDir)

@@ -12,7 +12,9 @@ const SCRUBBED_ENV = [
  *  Used by every CLI call (turns and the version probe). */
 export function claudeChildEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const env = externalCliEnv(base);
-	for (const key of SCRUBBED_ENV) delete env[key];
+	// Case-insensitive: Windows env names are, so `anthropic_api_key` reaches the child as ANTHROPIC_API_KEY.
+	const scrubbed = new Set(SCRUBBED_ENV);
+	for (const key of Object.keys(env)) if (scrubbed.has(key.toUpperCase())) delete env[key];
 	return env;
 }
 
