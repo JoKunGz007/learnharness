@@ -3,6 +3,11 @@ import type { PiEngine } from "../agent/models.ts";
 import { readMistakes, updateMistakes } from "../store/mistakes.ts";
 import { effectiveSettings, stores } from "./stores.ts";
 import { analyzeMistake } from "./mistake-analysis.ts";
+import { resolveRoleSpec } from "../core/settings-resolution.ts";
+import { connectionBackgroundAllowed } from "../agent/subscription-connections.ts";
+import { installClaudeCodeBackgroundGate } from "./claude-code-config.ts"; // Fork
+
+installClaudeCodeBackgroundGate(); // Fork: the mistakes routes may load in a chunk without chat-handler
 
 /**
  * Finding and analyzing the learner's mistakes. A scan reads a session's saved
@@ -162,6 +167,17 @@ export function enqueueAnalyses(ids: readonly string[]): void {
 	const byId = new Map(records.map((r) => [r.id, r]));
 	const fresh = [...new Set(ids)].filter((id) => !s.running.has(id) && byId.has(id));
 	if (fresh.length === 0) return;
+	// Fork: a gated provider (Claude Code with background use off) would refuse at
+	// dispatch; mark the batch failed without `analyzedAt` so it spends no cap.
+	const spec = resolveRoleSpec("analyst", stores.settingsStore.readSettings());
+	if (spec && !connectionBackgroundAllowed(spec.provider)) {
+		const gatedIds = new Set(fresh);
+		const gateError = "Background use is off for this model's provider. Turn it on in Settings → Providers, then retry.";
+		updateMistakes((current) =>
+			current.map((r) => (gatedIds.has(r.id) ? { ...r, status: "failed", analysis: undefined, error: gateError } : r)),
+		);
+		return;
+	}
 	const cap = effectiveSettings().agent.mistakeAnalysis.dailyCap;
 	// In-flight calls have not stamped `analyzedAt` yet — count them too so
 	// two near-simultaneous scans cannot both spend the last permit.

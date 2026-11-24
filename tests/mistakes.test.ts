@@ -316,4 +316,33 @@ describe("the mistakes service and routes", () => {
 		assert.equal((await stored()).find((r) => r.id === blocked.id)!.status, "ready");
 		server.analysisEngineOverride.current = undefined;
 	});
+
+	it("Fork: Claude Code with background use off queues nothing and spends no cap", async () => {
+		const settingsStore = (await import("../src/store/settings.ts")).settingsStore;
+		const gated = {
+			version: 1,
+			agent: { mistakeAnalysis: { auto: true, dailyCap: 100 } },
+			models: { cheap: { model: { provider: "claude-code", id: "claude-haiku-4-5" } } },
+			claudeCode: { enabled: true, allowBackgroundUse: false },
+		};
+		settingsStore.writeSettings(gated as never);
+		const chat = chatStore.createChat("Gated");
+		chatStore.saveMessages(chat.id, [call("g1", "quiz", {}), result("g1", "quiz", answer({ questionText: "gated one" }))]);
+		const before = server.analysesInLastDay();
+		server.analysisEngineOverride.current = analystEngine([submit({ errorType: "misread", topic: "t", whatYouDid: "w", correct: "c", rule: "r" })]);
+		server.enqueueAnalyses(server.recordChatMistakes(chat.id));
+		assert.equal(server.analysisProgress().active, 0, "nothing queued");
+		const rec = (await stored()).find((r) => r.chatId === chat.id)!;
+		assert.equal(rec.status, "failed");
+		assert.match(rec.error ?? "", /Background use is off/);
+		assert.equal(rec.analyzedAt, undefined);
+		assert.equal(server.analysesInLastDay(), before, "cap untouched");
+
+		// Turning background use back on lets the retry run.
+		settingsStore.writeSettings({ ...gated, claudeCode: { enabled: true, allowBackgroundUse: true } } as never);
+		server.retryMistake(rec.id);
+		await until(() => server.analysisProgress().active === 0);
+		assert.equal((await stored()).find((r) => r.id === rec.id)!.status, "ready");
+		server.analysisEngineOverride.current = undefined;
+	});
 });

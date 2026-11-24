@@ -141,3 +141,8 @@ Decision: Merge upstream v0.7.0 (117 commits) into `main` as `66f81150`, keeping
 Rationale: The budget caps plan-limit spend per research job on a Pro plan. Upstream's width setting can reproduce the 46rem look, so #139's default isn't needed. All other ported PRs are still open upstream.
 Consequences: 0.7 renders KaTeX as HTML only, so the ported copy-as-Markdown converters (#715, #748) now read `data-tex` (`components/copy-selection-markdown.ts`, `components/md-blocks.tsx`; `GOTCHAS.md`). Not verified: that the CLI accepts the `fable` alias, any live turn on the merged code, an installer build.
 Evidence: `66f81150`; `npx tsc --noEmit` clean; full suite 5,854 tests, 35 fail, all in the known Windows class (`GOTCHAS.md`); `copy-selection-markdown`, `render-md-blocks`, `background-turn-limits` 49/49; flashcards plugin tests 78/78.
+
+## D-018 — 2026-11-24 — Mistake analysis checks the background gate before queuing
+Status: accepted (owner: "go ahead", 2026-11-24). Supersedes the background-use part of D-016 § Consequences.
+Decision: `enqueueAnalyses` (`src/server/mistakes.ts`) resolves the analyst slot and, when `connectionBackgroundAllowed` refuses its provider, marks the batch failed with no `analyzedAt` (as the cap does) instead of queuing calls that the dispatch gate would refuse. The module installs the Claude Code gate itself, like `jobs.ts`, because the mistakes routes may load without `chat-handler`. The auto-analysis default (on, `dailyCap` 20) is unchanged pending the owner's call.
+Evidence: `tests/mistakes.test.ts` ("Fork: Claude Code with background use off queues nothing and spends no cap"; its retry half needs the `claude` binary on PATH, since the gate checks it), 16/16; `npx tsc --noEmit` clean.

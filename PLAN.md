@@ -2,7 +2,9 @@
 
 _The current state only, not a log. Over ~200 lines: move finished entries to `docs/archive/PLAN-<date>.md` and leave a pointer._
 
-## Current checkpoint (2026-11-22)
+## Current checkpoint (2026-11-24)
+
+- **Mistakes gate fix; 0.7.0 installed (2026-11-24; D-018).** `enqueueAnalyses` now checks the analyst provider's background gate first: with Claude Code background use off, new misses are recorded as failed ("Background use is off…") without `analyzedAt`, so they make no call and spend no cap; retry works once it is back on. `tests/mistakes.test.ts` 16/16, `npx tsc --noEmit` clean. The owner installed 0.7.0: real-profile `main.log`, launch 2026-11-24 00:03 UTC: Next 16.4.6, server up, updater disabled, window open, no errors. **Not verified:** a turn in the window (owner will run one). Auto-analysis default (on, cap 20) unchanged; the owner has not chosen yet. The dev chat `chat_mvp2ud3g_5e05ea45` test side thread was removed (backup `.tmp/chat_mvp2ud3g_5e05ea45.backup.json`).
 
 - **Upstream v0.7.0 merged (2026-11-22; `66f81150` on `main`, not pushed; D-017).** 29 conflicts. Choices: #532's research budget kept, upstream's transcript width (default Full) over #139's column. Evidence:
   - `npx tsc --noEmit` clean (after `npm ci`). Full suite (quoted globs): 5,854 tests, 5,811 pass, 35 fail; a triage run put all 35 in the known Windows class (`GOTCHAS.md` § Windows-only test failures). The merge's real regression (copy-as-Markdown lost math) is fixed: `copy-selection-markdown`, `render-md-blocks`, `background-turn-limits` 49/49. Flashcards plugin tests 78/78.
