@@ -14,8 +14,8 @@ import { useState } from "react";
 import { startDraftSession } from "@/components/new-session";
 import { useReviewPayload } from "@/components/review-payload-hook";
 import { TopBar } from "@/components/top-bar";
-import { VerificationBadge } from "@/components/verification-badge";
-import { REVIEW_SESSION_MAX, type ReviewItem, type ReviewPayload } from "@/src/core";
+import { DisputeChip, VerificationBadge } from "@/components/verification-badge";
+import { RECALL_PICK_CAP, REVIEW_SESSION_MAX, type ReviewItem, type ReviewPayload } from "@/src/core";
 
 const DAY = 86_400_000;
 
@@ -83,6 +83,7 @@ function ItemRow({
 				<div className="flex min-w-0 items-center gap-2">
 						<p className="truncate text-sm">{item.name}</p>
 						<VerificationBadge verification={item.verification} />
+						<DisputeChip disputes={item.disputes} />
 					</div>
 				<p className="line-clamp-2 text-xs text-muted-foreground">{item.statement}</p>
 			</div>
@@ -105,12 +106,15 @@ export function ReviewBody({
 	busy,
 	onToggle,
 	onStart,
+	onStartRecall,
 }: {
 	payload: ReviewPayload | null;
 	selected: ReadonlySet<string>;
 	busy: boolean;
 	onToggle: (id: string) => void;
 	onStart: () => void;
+	/** Fork (#806 E2): Start recall — the due list, most overdue first, capped. */
+	onStartRecall?: () => void;
 }) {
 	if (payload === null) {
 		return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -122,6 +126,18 @@ export function ReviewBody({
 				<div className="flex items-center justify-between gap-3">
 					<h2 className="text-xs uppercase tracking-widest text-muted-foreground/70">Due now · {due.length}</h2>
 					{due.length > 0 && (
+						<div className="flex items-center gap-2">
+						{onStartRecall && (
+							<button
+								type="button"
+								data-testid="review-start-recall"
+								disabled={busy}
+								onClick={onStartRecall}
+								className="rounded-md border border-border px-3 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								Start recall ({Math.min(due.length, RECALL_PICK_CAP)})
+							</button>
+						)}
 						<button
 							type="button"
 							data-testid="review-start"
@@ -131,6 +147,7 @@ export function ReviewBody({
 						>
 							Start review ({selected.size})
 						</button>
+						</div>
 					)}
 				</div>
 				{due.length === 0 ? (
@@ -181,6 +198,21 @@ export function ReviewView() {
 		}
 	};
 
+	// Fork (#806 E2): the recall session takes the due list as is (most overdue
+	// first, capped), not the review selection.
+	const startRecall = async () => {
+		const picks = (payload?.due ?? []).slice(0, RECALL_PICK_CAP).map(({ id, name, statement }) => ({ id, name, statement }));
+		if (picks.length === 0) return;
+		setBusy(true);
+		try {
+			const url = await startDraftSession(`Recall: ${picks.map((i) => i.name).join(", ")}`, fetch, "practice", picks, undefined, undefined, "recall");
+			if (url) router.push(url);
+			else setBusy(false);
+		} catch {
+			setBusy(false);
+		}
+	};
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<TopBar>
@@ -194,6 +226,7 @@ export function ReviewView() {
 						busy={busy}
 						onToggle={(id) => setPicked(toggleSelection(selected, id))}
 						onStart={() => void start()}
+						onStartRecall={() => void startRecall()}
 					/>
 				</div>
 			</div>

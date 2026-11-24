@@ -50,6 +50,7 @@ export async function startDraftSession(
 	picks?: readonly DraftPick[],
 	starter = new SessionStarter(),
 	settingsIdentity?: string,
+	variant?: "recall", // Fork (#806 E2): practice only
 ): Promise<string | null> {
 	const t = text.trim();
 	if (!t) return null;
@@ -59,7 +60,7 @@ export async function startDraftSession(
 	// [id] name: statement lines, target validation's truth set).
 	return starter.start(
 		mode === "practice"
-			? { title: t, kind: "practice", ...(picks && picks.length > 0 ? { graphContext: { propositions: picks } } : {}) }
+			? { title: t, kind: "practice", ...(variant === "recall" ? { variant } : {}), ...(picks && picks.length > 0 ? { graphContext: { propositions: picks } } : {}) }
 			: { title: t },
 		fetchLike,
 		settingsIdentity,

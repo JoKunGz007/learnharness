@@ -234,3 +234,6 @@ A teacher question tool is named `recall` (`src/agent/tools.ts` ~250, `pending.t
 
 ## Bash heredoc + `python -` mangles escaped newlines
 A backslash-n escape inside a string literal in a heredoc-fed `python -` script (or `printf`) becomes a real newline in the written file; in a TS file it broke the build (2026-11-25, #806 E1). Edit such strings with the Edit tool.
+
+## `POST /api/chats` creates a real session
+Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 2026-11-25, checker probe). Probe chat routes with GET only.

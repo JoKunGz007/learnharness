@@ -3,6 +3,8 @@ import { clearOpeningPrompt, OPENING_PROMPT_FAILURE, stashOpeningPrompt } from "
 interface SessionCreation {
 	title: string;
 	kind?: "practice";
+	/** Fork (#806 E2): "recall" marks a practice chat as a recall session. */
+	variant?: "recall";
 	graphContext?: { propositions: readonly { id: string; name: string; statement: string }[] };
 }
 

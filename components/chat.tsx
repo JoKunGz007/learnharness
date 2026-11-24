@@ -12,7 +12,7 @@ import { findSurfaceBoundary } from "./plugin-surface-targets";
 import { scheduleOpeningSubmission } from "./plugin-submission-opening";
 import { activeProblemOccurrenceOf, buildAnswer, toClientQuestion, type PluginSubmission, type PluginSubmissionTarget, type QuestionData } from "@/src/core";
 import { validatePluginBuiltinSubmissionAnswer } from "@/src/core";
-import { formatAway } from "@/src/core"; // Fork: welcome-back line
+import { formatAway, recallProgress, type LhMessage as RecallMessage } from "@/src/core"; // Fork: welcome-back line; #806 E2 recall header
 import { visibleQueuedSteers } from "@/components/session-core";
 import { SetupDialog } from "@/components/setup-dialog";
 import { Hint } from "@/components/ui/hint";
@@ -180,6 +180,11 @@ export const ChatActionsContext = createContext<{
 	/** Opens the model setup dialog (BYOK, 2026-09-22): refused job cards
 	 *  deep-link into the same SetupDialog the send interception uses. */
 	openSetup: () => void;
+	/** Fork (#806 E2): recall chats only — the record, the busy flag and the
+	 *  auto-next wake the rating card needs. `continueTurn(true)` adopts the
+	 *  record and starts the tutor's next turn with no user bubble (the saved
+	 *  grade marker is its input); `false` only adopts. */
+	recall?: { messages: readonly RecallMessage[]; busy: boolean; continueTurn: (next: boolean) => Promise<void> };
 } | null>(null);
 
 /** The BYOK refusal envelope from the transport's error text: the
@@ -285,6 +290,7 @@ export function Chat({
 	initiallyCompacting = false,
 	initialConfigured = false,
 	kind = "teach",
+	variant,
 }: {
 	chatId: string;
 	title: string;
@@ -295,6 +301,8 @@ export function Chat({
 	 *  renders no phase chip (no probe→teach arc applies) and a Practice
 	 *  tag rides the header instead. */
 	kind?: "teach" | "practice";
+	/** Fork (#806 E2): "recall" marks a practice chat as a recall session. */
+	variant?: "recall";
 	initialPrompt?: string;
 	/** A teacher turn is running server-side but attached to no client
 	 * (navigated away mid-turn, returned while in flight). */
@@ -1630,6 +1638,16 @@ export function Chat({
 				syncFromServer,
 				sendText: (t: string) => { void prepareText(t); },
 				openSetup: () => setSetupOpen(true),
+				recall: variant === "recall" ? {
+					messages: nativeMessages,
+					busy,
+					// Fork (#806 E2): auto-next — adopt the saved grade, then a plain "continue"
+					// (the grade marker is the learner input; the view draws no bubble for it).
+					continueTurn: async (next: boolean) => {
+						await syncFromServer();
+						if (next) await send({ type: "continue" });
+					},
+				} : undefined,
 			}}
 		>
 		<SessionMermaidContext.Provider
@@ -1770,6 +1788,11 @@ export function Chat({
 					) : (
 						<PhaseChip phase={phases.at(-1) ?? "probe"} />
 					)}
+					{/* Fork (#806 E2): recall progress, "n of m due". */}
+					{variant === "recall" && (() => {
+						const p = recallProgress(nativeMessages);
+						return p.total > 0 ? <span data-testid="recall-progress" className="pointer-events-none flex shrink-0 select-none items-center text-xs font-medium uppercase tracking-wide text-muted-foreground">{p.current} of {p.total} due</span> : null;
+					})()}
 					<PluginSessionTopBarActions readContext={actionContext} captureContext={captureActionContext} refreshRef={refreshPluginActions} />
 				</TopBar>
 

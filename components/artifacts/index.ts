@@ -7,6 +7,7 @@ import { ImageCard } from "@/components/artifacts/image-card";
 import { ProbeDoneCard } from "@/components/artifacts/probe-done-card";
 import { ToolCallCard } from "@/components/artifacts/tool-call-card";
 import { ProblemCard, ConcludeCard } from "@/components/practice-cards";
+import { RecallGradeCard } from "@/components/recall-card"; // Fork (#806 E2)
 
 /**
  * Artifact renderer registry — the extension point for tool-part UI.
@@ -46,6 +47,7 @@ export const artifactRenderers: Record<string, ComponentType<ArtifactPartProps>>
 	// the conclusion carries the outcome + verdict + the reveal.
 	problem: ProblemCard,
 	conclude: ConcludeCard,
+	propose_grade: RecallGradeCard, // Fork (#806 E2): the recall rating card
 	// The prober's graph tools (wave 7): same quiet expandable card —
 	// collapsed one-liner (tool name + the session id for
 	// list_propositions), the tool's own compact row-per-line output

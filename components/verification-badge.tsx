@@ -8,7 +8,7 @@
  */
 import { CheckIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { NodeVerification } from "@/src/core";
+import { latestDispute, type NodeVerification, type ReviewDispute } from "@/src/core";
 
 export type VerificationSummary = Pick<NodeVerification, "status" | "oldText" | "note" | "source">;
 
@@ -66,6 +66,33 @@ export function VerificationBadge({ verification }: { verification?: Verificatio
 				<TooltipTrigger asChild>{trigger}</TooltipTrigger>
 				<TooltipContent side="top">
 					<TipBody verification={verification} />
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+}
+
+/** Fork (#806 E2): the "disputed" chip beside a statement on /review — the learner
+ *  disputed a recall grade since the last counted review. Neutral tone (a flag,
+ *  not a verdict); the latest reason rides the tooltip (hover and focus). */
+export function DisputeChip({ disputes }: { disputes?: readonly ReviewDispute[] }) {
+	const latest = latestDispute(disputes);
+	if (!latest) return null;
+	return (
+		<TooltipProvider>
+			<Tooltip disableHoverableContent={false}>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						data-testid="dispute-chip"
+						onClick={(e) => e.stopPropagation()}
+						className="inline-flex shrink-0 items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-foreground/40"
+					>
+						disputed
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="top">
+					<span data-testid="dispute-tip" className="block max-w-xs">{latest.reason ? `Your reason: ${latest.reason}` : "You disputed this grade (no reason given)."}</span>
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
