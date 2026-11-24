@@ -26,7 +26,7 @@ import { resolveTargetId } from "./chains.ts";
 import type { NodeVerification, VerificationSource } from "./contracts/graph.ts";
 import { getGraph } from "./graph.ts";
 import type { ChatStore, GraphStore } from "./ports.ts";
-import { reviewEventsFromMessages, type ReviewEvent } from "./review-events.ts";
+import { recallEventsFromMessages, reviewEventsFromMessages, type PracticeReviewEvent, type RecallReviewEvent, type ReviewDispute, type ReviewEvent } from "./review-events.ts";
 import { REVIEW_SESSION_SIZE, type ReviewItem, type ReviewPayload } from "./review-payload.ts";
 
 /** Target probability of recall at the due date. */
@@ -62,7 +62,8 @@ const HELPED_RUNG = 2;
  *   - otherwise a solve with no hint or only R0–R1 is Good; one that needed
  *     R2+ or ended `solvedWithHints` is Hard.
  */
-export function gradeOf(event: Pick<ReviewEvent, "outcome" | "rung" | "missClass">): Grade {
+export function gradeOf(event: Pick<PracticeReviewEvent, "outcome" | "rung" | "missClass"> | RecallReviewEvent): Grade {
+	if ("kind" in event) return event.effective as Grade; // Fork (#806 E): a recall grade is already final
 	if (event.outcome === "surrendered") return Rating.Again;
 	if (event.missClass === "execution" || event.missClass === "careless") return Rating.Good;
 	if (event.outcome === "solvedWithHints") return Rating.Hard;
@@ -191,10 +192,17 @@ function verificationSummary(v: NodeVerification, resolveSource: ReviewDeps["res
  */
 export function reviewPayload(deps: ReviewDeps, now: number): ReviewPayload {
 	const events: ReviewEvent[] = [];
+	const disputes: ReviewDispute[] = []; // Fork (#806 E)
 	for (const summary of deps.chatStore.listChats()) {
 		if (summary.kind !== "practice") continue;
 		const record = deps.chatStore.getChat(summary.id);
-		if (record) events.push(...reviewEventsFromMessages(record.messages, summary.id));
+		if (!record) continue;
+		if (record.variant === "recall") {
+			// Fork (#806 E): a recall chat carries grades; its conclude calls are ignored.
+			const recall = recallEventsFromMessages(record.messages, summary.id);
+			events.push(...recall.events);
+			disputes.push(...recall.disputes);
+		} else events.push(...reviewEventsFromMessages(record.messages, summary.id));
 	}
 	const graphNodes = getGraph(deps.graphStore).nodes;
 	const nodes = new Map(graphNodes.map((n) => [n.id, n]));
@@ -209,6 +217,8 @@ export function reviewPayload(deps: ReviewDeps, now: number): ReviewPayload {
 	const reviews = foldReviews(resolved, new Set(nodes.keys()));
 	const item = (r: NodeReview): ReviewItem => {
 		const node = nodes.get(r.nodeId)!;
+		// A dispute stays a flag until a later counted review follows it.
+		const open = disputes.filter((d) => resolveTargetId(d.nodeId, graphNodes) === r.nodeId && d.at > r.lastReviewAt);
 		return {
 			id: r.nodeId,
 			name: node.name,
@@ -218,6 +228,7 @@ export function reviewPayload(deps: ReviewDeps, now: number): ReviewPayload {
 			reps: r.reps,
 			lapses: r.lapses,
 			verifying: r.verifying,
+			...(open.length ? { disputes: open.map((d) => ({ ...d, nodeId: r.nodeId })) } : {}),
 			...(node.verification ? { verification: verificationSummary(node.verification, deps.resolveSource) } : {}),
 		};
 	};

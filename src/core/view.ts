@@ -517,6 +517,11 @@ function projectMarker(marker: LhMarkerMessage, out: LhViewMessage[]): void {
 			});
 			return;
 		}
+		case "recall-grade": {
+			// Fork (#806 E): the learner's saved grade; the recall card reads it.
+			out.push({ id: marker.id, role: "user", parts: [{ type: "data-recall-grade", id: `rg_${marker.id}`, data: marker.details }] });
+			return;
+		}
 		case "welcome-back": {
 			// Fork: a quiet line (the model-facing text is never shown).
 			out.push({

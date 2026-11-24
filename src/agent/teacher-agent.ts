@@ -6,7 +6,7 @@ import { providerEventObserver } from "./provider-events.ts";
 import type { Usage } from "@earendil-works/pi-ai";
 import { PATHS } from "../../config.ts";
 import { APP_IDENTITY, piEngineFor, type PiEngine } from "./models.ts";
-import { effectivePromptSegments } from "./prompt-segments.ts";
+import { effectivePromptSegments, recallPromptTexts } from "./prompt-segments.ts";
 import {
 	askUserQuestionTool,
 	createProberTools,
@@ -15,7 +15,7 @@ import {
 	type ProberToolContext,
 	type TeacherToolContext,
 } from "./tools.ts";
-import { practiceTools, createPracticeGate, type PracticeGate, type PracticeToolContext } from "./tools/practice.ts";
+import { practiceTools, recallTools, createPracticeGate, type PracticeGate, type PracticeToolContext } from "./tools/practice.ts";
 import { pluginProblemTools, isPluginProblemPoseAcknowledgment, type NativePluginProblemContribution } from "./plugin-problem-tools.ts";
 import { healToolRecord, withArgumentHeal } from "./tools/heal.ts";
 import { sendToUserApplies, sendToUserTool } from "./tools/send-to-user.ts";
@@ -94,6 +94,11 @@ export function composeInstructions(kind: AgentKind, switches?: Record<string, b
 		.join("\n\n---\n\n");
 }
 
+/** Fork (#806 E): the recall variant's system prompt (own fragment + shared appendix). */
+export function composeRecallInstructions(switches?: Record<string, boolean>): string {
+	return recallPromptTexts(switches ?? {}).map((t) => t.trim()).filter(Boolean).join("\n\n---\n\n");
+}
+
 // The switch-free source composition, cached per kind (module-load once).
 // With promptSwitches provided, baseAgentOptions composes FRESH per turn —
 // an override file written while its switch is ON must flip the next
@@ -156,6 +161,9 @@ export interface AgentBuildOptions {
 	 *  <chatId>.jsonl via providerEventObserver — the GLM-truncation /
 	 *  DeepSeek-id incident layer. Absent or env-off → no observer. */
 	chatId?: string;
+	/** Fork (#806 E): the practice agent's recall variant — the recall prompt
+	 *  replaces the practice doctrine; the registry is propose_grade only. */
+	variant?: "recall";
 }
 
 /**
@@ -214,9 +222,11 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 	const narrationGuard = narrationGuardApplies(kind, engine.model, opts.tools !== undefined);
 	const narrationHooks = narrationGuard ? makeNarrationGuard() : undefined;
 	const lessonGate = kind === "teacher" && planExists !== undefined; // Fork: lesson-text rule
-	const composedPrompt = opts.promptSwitches
-		? composeInstructions(kind, opts.promptSwitches)
-		: composedInstructions[kind]!;
+	const composedPrompt = opts.variant === "recall"
+		? composeRecallInstructions(opts.promptSwitches) // Fork (#806 E)
+		: opts.promptSwitches
+			? composeInstructions(kind, opts.promptSwitches)
+			: composedInstructions[kind]!;
 	const builtinPrompt = narrationGuard ? `${composedPrompt}\n\n---\n\n${SEND_TO_USER_DELIVERY_RULE}` : composedPrompt;
 	// Bind native read and preserve the kind/model-aware Claude output gate
 	// before resolving additive plugins. Explicit registries remain caller-owned.
@@ -420,6 +430,12 @@ export function bareQuestionTools(): Record<string, AgentTool<any>> {
  * Practice uses ordinary final prose, not the explicit output tool.
  */
 export function createPracticeAgent(ctx: PracticeToolContext, opts: AgentBuildOptions = {}) {
+	// Fork (#806 E): the recall variant is a closed registry (propose_grade) — no
+	// plugin problem types, no file/job tools; the explicit registry also skips contributions.
+	if (opts.variant === "recall" && opts.tools === undefined) {
+		const tools = recallTools(ctx);
+		return baseAgentOptions("practice", { ...opts, tools }, Object.values(tools));
+	}
 	// Explicit test registries bypass all builtin construction and contributions.
 	if (opts.tools !== undefined) return baseAgentOptions("practice", opts, Object.values(opts.tools));
 	const gate = createPracticeGate(ctx);

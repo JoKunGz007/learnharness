@@ -11,7 +11,7 @@ import { Rating } from "ts-fsrs";
 import type { ChatRecord, ChatSummary } from "../src/core/contracts/chat.ts";
 import type { GraphNode } from "../src/core/contracts/graph.ts";
 import type { LhMessage } from "../src/core/native-messages.ts";
-import type { ReviewEvent, ReviewRung } from "../src/core/review-events.ts";
+import type { PracticeReviewEvent, ReviewEvent, ReviewRung } from "../src/core/review-events.ts";
 import {
 	ESTABLISHED_STABILITY_DAYS,
 	dueReviews,
@@ -29,9 +29,9 @@ const T0 = Date.UTC(2026, 0, 1);
 function ev(
 	nodeId: string,
 	at: number,
-	outcome: ReviewEvent["outcome"] = "solved",
+	outcome: PracticeReviewEvent["outcome"] = "solved",
 	rung: ReviewRung = null,
-	missClass: ReviewEvent["missClass"] = null,
+	missClass: PracticeReviewEvent["missClass"] = null,
 	session = "s1",
 ): ReviewEvent {
 	return { nodeId, at, outcome, rung, missClass, session };
@@ -40,7 +40,7 @@ function ev(
 const LIVE = new Set(["n_a", "n_b", "n_c"]);
 
 describe("gradeOf (owner, 2026-10-23: no Easy)", () => {
-	const cases: Array<[ReviewEvent["outcome"], ReviewRung, Rating]> = [
+	const cases: Array<[PracticeReviewEvent["outcome"], ReviewRung, Rating]> = [
 		["solved", null, Rating.Good],
 		["solved", 0, Rating.Good],
 		["solved", 1, Rating.Good],
@@ -59,7 +59,7 @@ describe("gradeOf (owner, 2026-10-23: no Easy)", () => {
 });
 
 describe("R1 — slips are not forgetting (docs/review-plan.md §12)", () => {
-	const cases: Array<[ReviewEvent["outcome"], ReviewRung, ReviewEvent["missClass"], Rating]> = [
+	const cases: Array<[PracticeReviewEvent["outcome"], ReviewRung, PracticeReviewEvent["missClass"], Rating]> = [
 		["solved", 3, "execution", Rating.Good],
 		["solved", 5, "careless", Rating.Good],
 		["solvedWithHints", 2, "execution", Rating.Good],
@@ -150,7 +150,7 @@ const ESTABLISHED = [ev("n_a", T0), ev("n_a", T0 + 2 * DAY), ev("n_a", T0 + 13 *
 const fold = (events: ReviewEvent[]) => foldReviews(events, LIVE)[0]!;
 
 describe("R2 — a first failure on an established node is provisional (§13–14)", () => {
-	const fail = (at: number, session: string, outcome: ReviewEvent["outcome"] = "surrendered") =>
+	const fail = (at: number, session: string, outcome: PracticeReviewEvent["outcome"] = "surrendered") =>
 		ev("n_a", at, outcome, 5, "cue", session);
 
 	it("the established fixture really is established", () => {

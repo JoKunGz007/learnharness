@@ -737,6 +737,7 @@ export async function handleChatInput(
 		// Debug (owner, 2026-10-04): teacher/prober raw provider events under
 		// LH_PROVIDER_EVENTS=1 (provider-events.ts); no-op otherwise.
 		chatId,
+		...(record.kind === "practice" && record.variant === "recall" ? { variant: "recall" as const } : {}), // Fork (#806 E)
 		// The prompt-override switches (P2, 2026-09-19): same resolution
 		// point as the tool delta — the agent layer composes the system
 		// prompt fresh per turn, swapping in any enabled override segments.

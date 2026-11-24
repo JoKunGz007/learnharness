@@ -31,6 +31,10 @@ export interface ChatRecord {
 	imageSnapshots?: Record<string, ImageSnapshot>;
 	/** The session's kind; an absent field reads as teach. */
 	kind?: ChatKind;
+	/** Fork (#806 E, D-023): "recall" marks a practice chat as a recall session
+	 *  (recall prompt + propose_grade tool, graded by the learner's keys).
+	 *  Only valid with kind "practice"; `kind` itself stays upstream's type. */
+	variant?: "recall";
 	/** The session's plan tree, written by the native plan tools. */
 	tree?: PlanTree;
 	/** Append-only usage log, separate from message history: one entry per billed
@@ -300,6 +304,8 @@ export interface ChatSummary {
 	updatedAt: string;
 	/** Normalized kind (absent record field reads as teach). */
 	kind: ChatKind;
+	/** Fork (#806 E): recall chats only. */
+	variant?: "recall";
 	messageCount: number;
 	/** Transcript-derived phase: probe ends at successful probe_done completion;
 	 * plan ends at the first node-tagged teaching question call, not its answer. */

@@ -85,7 +85,8 @@ export interface LhMarkerMessage {
 		| "compaction"
 		| "side-question"
 		| "side-question-told"
-		| "welcome-back"; // Fork: welcome-back check (core/welcome-back.ts)
+		| "welcome-back" // Fork: welcome-back check (core/welcome-back.ts)
+		| "recall-grade"; // Fork (#806 E): the learner's saved grade in a recall chat
 	/** The model-facing text ("" for plan blocks — UI-only). */
 	content: string;
 	display: boolean;
@@ -305,6 +306,12 @@ export function newPlanBlockMessage(
  *  vocabulary — the tool-execute layer owns the tools themselves). */
 export const PRACTICE_PROBLEM_TOOL = "problem";
 export const PRACTICE_CONCLUDE_TOOL = "conclude";
+/** Fork (#806 E): the recall tutor's one tool (its grade proposal). */
+export const RECALL_GRADE_TOOL = "propose_grade";
+
+/** Fork (#806 E): the grades a recall card carries; the learner's key adds "dispute". */
+export type RecallRating = "again" | "hard" | "good";
+export type RecallKey = RecallRating | "dispute";
 
 /** One picked proposition of the graph-context marker (the learner's map
  *  pick — name + statement as the learner SAW them at pick time). */
@@ -312,6 +319,9 @@ export interface GraphContextPick {
 	id: string;
 	name: string;
 	statement: string;
+	/** Fork (#806 E): recall chats stamp the node's verification status (the
+	 *  statement above is then the effective, possibly corrected, text). */
+	verification?: "verified" | "corrected" | "doubtful" | "none";
 }
 
 /** The session's map context (owner, 2026-10-04): a SEPARATE custom
@@ -336,7 +346,7 @@ export function newGraphContextMessage(picks: readonly GraphContextPick[], chain
 		"[Session context] — picked from the learner's knowledge map when starting this session:",
 		"",
 		"Propositions (id — name: statement; the problem tool's target field uses these ids):",
-		...picks.map((p) => `- [${p.id}] ${p.name}: ${p.statement}`),
+		...picks.map((p) => `- [${p.id}] ${p.name}${p.verification ? ` (${p.verification})` : ""}: ${p.statement}`),
 	];
 	if (chains.length > 0) {
 		lines.push("", "Reasoning chains among them (premises → conclusion):", ...chains.map((c) => `- ${c}`));
@@ -386,6 +396,24 @@ export function newNextMessage(): LhMarkerMessage {
 		details: {},
 		timestamp: Date.now(),
 	};
+}
+
+/** Fork (#806 E): the learner's saved key for one `propose_grade` call, appended
+ *  by POST /api/chats/[id]/grade with no model turn. The model reads `content`
+ *  at the next turn; `details` is what the recall replay folds (nodeId and the
+ *  tutor's rating copy the call; the call stays the authority). */
+export interface RecallGradeDetails {
+	toolCallId: string;
+	nodeId: string;
+	tutorRating?: RecallRating;
+	key: RecallKey;
+	reason?: string;
+}
+export function newRecallGradeMessage(details: RecallGradeDetails): LhMarkerMessage {
+	const content = details.key === "dispute"
+		? `[Recall grade] The learner disputed your grading of [${details.nodeId}]; it is not counted.${details.reason ? ` Their reason: ${details.reason}` : ""}`
+		: `[Recall grade] The learner saved grade ${details.key} for [${details.nodeId}]${details.tutorRating ? ` (your proposal: ${details.tutorRating})` : ""}.`;
+	return { id: newMessageId(), role: "custom", customType: "recall-grade", content, display: true, details, timestamp: Date.now() };
 }
 
 /** The problem-dismissal marker (ask-style discard, owner 2026-10-04):
@@ -989,7 +1017,7 @@ export function nativeInputCause(message: AgentMessage, history: readonly AgentM
 	if (message.role === "system" || message.role === "assistant") return "neutral";
 	if (message.role === "custom") {
 		if (["probe-handoff", "subagent-steer", "subagent-abort"].includes(message.customType)) return "automatic";
-		if (["practice-thinking", "plugin-problem-submission", "practice-next"].includes(message.customType)) return "learner";
+		if (["practice-thinking", "plugin-problem-submission", "practice-next", "recall-grade"].includes(message.customType)) return "learner";
 		return ["graph-context", "plan-block", "problem-dismissed", "compaction", "side-question", "side-question-told", "welcome-back"].includes(message.customType) ? "neutral" : "unrecognizable";
 	}
 	if (message.role === "toolResult") {

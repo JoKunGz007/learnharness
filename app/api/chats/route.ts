@@ -1,4 +1,5 @@
-import { chainsForSelection, formatChainLine } from "@/src/core";
+import { chainsForSelection, formatChainLine, RECALL_PICK_CAP } from "@/src/core";
+import { getGraph } from "@/src/core/graph"; // Fork (#806 E): effective statement + verification for recall picks
 import { newGraphContextMessage, type GraphContextPick } from "@/src/core";
 import { compactionInFlight, createChat, isTurnRunning, listChats, readSettingsRecord, stores, titleFromPrompt } from "@/src/server";
 import type { ChatListItem } from "@/src/core";
@@ -20,12 +21,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-	const body = (await req.json().catch(() => ({}))) as { title?: unknown; kind?: unknown; graphContext?: unknown };
+	const body = (await req.json().catch(() => ({}))) as { title?: unknown; kind?: unknown; variant?: unknown; graphContext?: unknown };
 	const title = typeof body.title === "string" ? body.title : "";
 	// Practice sessions (owner, 2026-10-04): kind "practice" marks the
 	// record — the practice agent + its tools from turn 1, no extraction.
 	const kind = body.kind === "practice" ? ("practice" as const) : undefined;
-	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind);
+	// Fork (#806 E): "recall" is a practice-chat variant; anything else is refused.
+	if (body.variant !== undefined && (body.variant !== "recall" || kind !== "practice")) {
+		return Response.json({ error: 'variant "recall" requires kind "practice"' }, { status: 400 });
+	}
+	const recall = body.variant === "recall";
+	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind, recall ? "recall" : undefined);
 	// PER-SESSION MODELS (owner, 2026-09-28): a session owns its model +
 	// thinking level from birth — stamped verbatim from the STRONG slot,
 	// the new-session default. From here the strong slot never reaches
@@ -47,7 +53,7 @@ export async function POST(req: Request) {
 	// The picks carry their own name/statement (what the learner saw at
 	// pick time); the chains derive from the CURRENT graph snapshot.
 	const rawPicks = (body.graphContext as { propositions?: unknown } | undefined)?.propositions;
-	const picks: GraphContextPick[] = Array.isArray(rawPicks)
+	let picks: GraphContextPick[] = Array.isArray(rawPicks)
 		? rawPicks
 				.filter(
 						(p): p is GraphContextPick =>
@@ -57,8 +63,17 @@ export async function POST(req: Request) {
 							typeof (p as GraphContextPick).name === "string" &&
 							typeof (p as GraphContextPick).statement === "string",
 					)
-					.slice(0, 64)
+					.slice(0, recall ? RECALL_PICK_CAP : 64)
 			: [];
+	if (recall) {
+		// Fork (#806 E): each pick carries its verification status and the effective
+		// (corrected) statement from the current graph; ids the graph lacks stay "none".
+		const live = new Map(getGraph(stores.graphStore).nodes.map((n) => [n.id, n]));
+		picks = picks.map((p) => {
+			const n = live.get(p.id);
+			return { id: p.id, name: n?.name ?? p.name, statement: n?.statement ?? p.statement, verification: n?.verification?.status ?? "none" };
+		});
+	}
 	if (picks.length > 0) {
 		const byId = new Map(stores.graphStore.readNodes().map((n) => [n.id, n]));
 		const pickedNodes = picks.map((p) => byId.get(p.id)).filter((n) => n !== undefined);

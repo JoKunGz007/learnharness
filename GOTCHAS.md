@@ -228,3 +228,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: `next dev` recompiling (Fast Refresh took ~29 s after a stash/pop); the client's first `/api/graph` fetch waits on it. Not a data or render bug.
 - Also: the built-in browser pane must be visible for the canvas to draw; the canvas can't be clicked open reliably by automation, so ask the owner to click a node.
 
+
+## The name `recall` is taken twice
+A teacher question tool is named `recall` (`src/agent/tools.ts` ~250, `pending.ts` ~58) and practice problems have a `mode: "recall"` (`practice-problems.ts` ~10). #806's recall grading tool and variant need other identifiers in tool names (the chat `variant:"recall"` value is a separate field and fine).
+
+## Bash heredoc + `python -` mangles escaped newlines
+A backslash-n escape inside a string literal in a heredoc-fed `python -` script (or `printf`) becomes a real newline in the written file; in a TS file it broke the build (2026-11-25, #806 E1). Edit such strings with the Edit tool.

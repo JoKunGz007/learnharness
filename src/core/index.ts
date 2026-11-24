@@ -30,6 +30,7 @@ export * from "./question-core.ts";
 // (review.ts, ts-fsrs) is server-only like graph.ts — NOT re-exported here.
 export * from "./review-payload.ts";
 export * from "./review-events.ts";
+export * from "./recall.ts"; // Fork (#806 E)
 // The event bus (push architecture, 2026-10-02): vocabulary + emit/subscribe
 // for every layer; the browser shell consumes the types + the runtime names
 // through this barrel (shell law: pure core via @/src/core only).

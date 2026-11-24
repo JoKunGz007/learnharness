@@ -4,6 +4,7 @@
  * the scheduler itself (core/review.ts, ts-fsrs) stays server-side.
  */
 import type { NodeVerification } from "./contracts/graph.ts";
+import type { ReviewDispute } from "./review-events.ts";
 
 /** How many due propositions a review session carries by default (owner,
  *  2026-10-23); the page lets the learner adjust the selection. */
@@ -29,6 +30,9 @@ export interface ReviewItem {
 	verifying: boolean;
 	/** Fork (#806 D): the node's verification summary; absent = unverified. */
 	verification?: Pick<NodeVerification, "status" | "oldText" | "note" | "source">;
+	/** Fork (#806 E): the learner's disputes of recall grades on this node that
+	 *  came after its last counted review; absent = none. */
+	disputes?: ReviewDispute[];
 }
 
 export interface ReviewPayload {

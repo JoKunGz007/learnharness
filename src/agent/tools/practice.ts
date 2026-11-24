@@ -24,7 +24,8 @@ import { findTool } from "./find.ts";
 import { grepTool } from "./grep.ts";
 import { jobTools, type JobToolContext } from "./jobs.ts";
 import { proberGraphTools, type GraphToolContext } from "./graph.ts";
-import { activeProblemOf } from "../../core/native-messages.ts";
+import { activeProblemOf, RECALL_GRADE_TOOL } from "../../core/native-messages.ts";
+import { proposeGradeProblems, recallPicksOf } from "../../core/recall.ts";
 import type { LhMessage } from "../../core/native-messages.ts";
 import { concludeResult, invalidInputResult, problemResult } from "../tool-execute.ts";
 import { healEncodedArguments, healToolRecord } from "./heal.ts";
@@ -216,4 +217,53 @@ export function practiceTools(ctx: PracticeToolContext, gate: PracticeGate = cre
 		...(jobs ? { pdf: jobs.pdf! } : {}),
 		...(ctx.graph ? proberGraphTools(ctx.graph) : {}),
 	});
+}
+
+// ─── propose_grade: the recall tutor's one tool (Fork, #806 E) ───────────────
+
+export const proposeGradeInputObject = Type.Object({
+	nodeId: Type.String({ description: "REQUIRED — the id of the statement you just graded, from the session context." }),
+	rating: Type.Optional(Type.Union([Type.Literal("again"), Type.Literal("hard"), Type.Literal("good")], {
+		description: "again, hard or good — bare word, no quotes. Only for verified or corrected statements; omit it for doubtful or unchecked ones (the learner rates themselves).",
+	})),
+	note: Type.Optional(Type.String({ description: "Optional one-line reason for the rating." })),
+});
+
+export type ProposeGradeInput = Static<typeof proposeGradeInputObject>;
+
+/** The recall registry's whole toolset: the session's statements live in the
+ *  graph-context marker, so the tool reads the record (no graph store). */
+export function proposeGradeTool(ctx: Pick<PracticeToolContext, "chatId" | "chatStore">): AgentTool<typeof proposeGradeInputObject> {
+	const picks = () => recallPicksOf(ctx.chatStore.getChat(ctx.chatId)?.messages ?? []);
+	return {
+		name: RECALL_GRADE_TOOL,
+		label: RECALL_GRADE_TOOL,
+		description:
+			"Propose the grade for the statement you just asked about, after your brief feedback on the learner's answer. " +
+			"Pass the statement's id and, for verified or corrected statements only, a rating (again, hard or good). " +
+			"The learner then saves their own key; the schedule uses the lower of the two. Ends your turn.",
+		parameters: proposeGradeInputObject,
+		executionMode: "sequential",
+		prepareArguments: (args: unknown) => {
+			const healed = healEncodedArguments(args, proposeGradeInputObject) as Record<string, unknown>;
+			// Names silently become ids, so the record carries canonical ids.
+			if (typeof healed.nodeId !== "string") return healed as never;
+			const id = resolveTargetId(healed.nodeId, picks());
+			return (id && id !== healed.nodeId ? { ...healed, nodeId: id } : healed) as never;
+		},
+		execute: async (_toolCallId, input) => {
+			const problems = proposeGradeProblems(picks(), input);
+			if (problems.length > 0) return invalidInputResult(RECALL_GRADE_TOOL, problems);
+			return {
+				content: [{ type: "text", text: "Grade proposed — the learner saves their key next. End your turn; do not ask the next question until their next message." }],
+				details: null,
+				terminate: true,
+			};
+		},
+	};
+}
+
+/** The recall chat's registry (the practice agent's recall variant). */
+export function recallTools(ctx: Pick<PracticeToolContext, "chatId" | "chatStore">): Record<string, AgentTool<any>> {
+	return healToolRecord({ [RECALL_GRADE_TOOL]: proposeGradeTool(ctx) });
 }

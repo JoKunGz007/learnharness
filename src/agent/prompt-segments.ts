@@ -132,3 +132,15 @@ export function allSegmentPaths(): string[] {
 	}
 	return [...paths].sort();
 }
+
+/** Fork (#806 E): the recall variant's prompt — its own fragment plus the
+ *  voice/accuracy/formatting appendix practice composes (overrides on those
+ *  shared segments apply). Not an editable segment list: it is not in
+ *  Settings, like the side-chat base. */
+export function recallPromptTexts(switches: Record<string, boolean>): string[] {
+	const own = fs.readFileSync(path.join(PROMPTS_DIR, "recall", "00-recall.md"), "utf-8");
+	const shared = effectivePromptSegments("practice", switches)
+		.filter((s) => s.shared && ["shared/10-voice.md", "shared/15-accuracy.md", "shared/40-formatting.md"].includes(s.path))
+		.map((s) => (s.enabled ? s.overrideText! : s.sourceText));
+	return [own, ...shared];
+}
