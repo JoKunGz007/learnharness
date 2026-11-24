@@ -201,6 +201,16 @@ export interface NodeVerification {
 	oldText?: string;
 	sourceRef?: string;
 	note?: string;
+	/** Fork (#806 D): the display form of `sourceRef`, resolved by the server
+	 *  where the snapshot is served (never by the core fold). Absent when the
+	 *  source can't be resolved (chunk or source gone). */
+	source?: VerificationSource;
+}
+
+/** Fork (#806 D): where a verified statement was checked, for display. */
+export interface VerificationSource {
+	label: string;
+	url?: string;
 }
 
 /** sessions.jsonl line — the emission checkpoint for one chat (which chats

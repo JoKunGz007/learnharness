@@ -3,6 +3,7 @@
  * browser-safe wire shape the Review page reads. Types + constants only —
  * the scheduler itself (core/review.ts, ts-fsrs) stays server-side.
  */
+import type { NodeVerification } from "./contracts/graph.ts";
 
 /** How many due propositions a review session carries by default (owner,
  *  2026-10-23); the page lets the learner adjust the selection. */
@@ -26,6 +27,8 @@ export interface ReviewItem {
 	/** A first failure on a well-established node awaits a second look
 	 *  (docs/review-plan.md §13): the page marks the row. */
 	verifying: boolean;
+	/** Fork (#806 D): the node's verification summary; absent = unverified. */
+	verification?: Pick<NodeVerification, "status" | "oldText" | "note" | "source">;
 }
 
 export interface ReviewPayload {

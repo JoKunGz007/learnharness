@@ -23,6 +23,7 @@
 
 import { createEmptyCard, fsrs, generatorParameters, Rating, type Card, type Grade } from "ts-fsrs";
 import { resolveTargetId } from "./chains.ts";
+import type { NodeVerification, VerificationSource } from "./contracts/graph.ts";
 import { getGraph } from "./graph.ts";
 import type { ChatStore, GraphStore } from "./ports.ts";
 import { reviewEventsFromMessages, type ReviewEvent } from "./review-events.ts";
@@ -172,6 +173,14 @@ export function foldReviews(
 export interface ReviewDeps {
 	chatStore: Pick<ChatStore, "listChats" | "getChat">;
 	graphStore: Pick<GraphStore, "readNodes" | "readChains">;
+	/** Fork (#806 D): resolves a verification sourceRef to its display form
+	 *  (server-side chunk/chat reads); absent = no source shown. */
+	resolveSource?: (ref: string | undefined) => VerificationSource | undefined;
+}
+
+function verificationSummary(v: NodeVerification, resolveSource: ReviewDeps["resolveSource"]): NonNullable<ReviewItem["verification"]> {
+	const source = v.source ?? resolveSource?.(v.sourceRef);
+	return { status: v.status, ...(v.oldText !== undefined ? { oldText: v.oldText } : {}), ...(v.note !== undefined ? { note: v.note } : {}), ...(source ? { source } : {}) };
 }
 
 /**
@@ -209,6 +218,7 @@ export function reviewPayload(deps: ReviewDeps, now: number): ReviewPayload {
 			reps: r.reps,
 			lapses: r.lapses,
 			verifying: r.verifying,
+			...(node.verification ? { verification: verificationSummary(node.verification, deps.resolveSource) } : {}),
 		};
 	};
 	return {

@@ -222,3 +222,9 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Effect: a failed import shows an error; a failed verifier call leaves its group pending (retried next batch).
 - Mitigation 2026-11-24: the bridge entry has `alwaysLoad: true` (`tool-bridge.ts` `toMcpConfig`), and the stream logs `[claude-code] CLI refused a harness tool call: <text>` and `[claude-code] bridge unreachable at init: status=…, missing tools=…`. Live after it, Haiku 5.5: no refusals; 1 of 3 first-imports-after-start failed instead as "could not reach the tool bridge" (before the init log line existed); the next 2 imports and all verifier calls (passage and web) succeeded. If it recurs, read those log lines first.
 - Known Windows test failures in `tests/claude-code*.test.ts` before this change: 3 (empty temp cwd, late MCP compatibility error, SIGTERM escalation).
+
+## Graph view looks empty right after an edit
+- Symptom: `/` shows "Start a session to begin learning" and the sessions list stays on "Loading…", though `/api/graph` returns nodes.
+- Cause: `next dev` recompiling (Fast Refresh took ~29 s after a stash/pop); the client's first `/api/graph` fetch waits on it. Not a data or render bug.
+- Also: the built-in browser pane must be visible for the canvas to draw; the canvas can't be clicked open reliably by automation, so ask the owner to click a node.
+

@@ -71,6 +71,7 @@ import { NotesImportControl, NotesImportErrors, NotesImportNotices, useNotesImpo
 import { PluginGraphActions } from "@/components/plugin-chrome";
 import { SettingsSlider as SettingSlider } from "@/components/settings/controls";
 import Link from "next/link";
+import { VerificationBadge } from "@/components/verification-badge";
 import { FileTextIcon, ListTreeIcon, Loader2Icon, SearchIcon, SettingsIcon, WaypointsIcon } from "lucide-react";
 import { graphFolderIds, graphFolderVisibleIds, incrementalLayout, propositionSessionHref, type GraphCostSummary, type GraphNode, type GraphSnapshot } from "@/src/core";
 import { planCostLabel } from "@/components/usage-format";
@@ -917,15 +918,23 @@ export function GraphChromeRow({
  *  overrides are what keep the card's own type. */
 const NODE_CARD_TYPE = "[--font-prose:var(--font-ui)] " +
 	"[&_[data-streamdown=inline-code]]:[font-size:inherit] [&_[data-streamdown=inline-code]]:[color:inherit]";
-export function NodeCardText({ name, statement }: Pick<GraphNode, "name" | "statement">) {
+export function NodeCardText({ name, statement, verification }: Pick<GraphNode, "name" | "statement" | "verification">) {
+	const nameBlock = (
+		<ToolContentResponse
+			mode="static"
+			className={`${NODE_CARD_TYPE} font-medium [--lh-prose-size:var(--text-sm)] [--lh-prose-leading:1.375]`}
+		>
+			{name}
+		</ToolContentResponse>
+	);
 	return (
 		<>
-			<ToolContentResponse
-				mode="static"
-				className={`${NODE_CARD_TYPE} font-medium [--lh-prose-size:var(--text-sm)] [--lh-prose-leading:1.375]`}
-			>
-				{name}
-			</ToolContentResponse>
+			{verification ? (
+				<div className="flex items-start gap-2">
+					<div className="min-w-0 flex-1">{nameBlock}</div>
+					<span className="mt-0.5 shrink-0"><VerificationBadge verification={verification} /></span>
+				</div>
+			) : nameBlock}
 			<ToolContentResponse
 				mode="static"
 				className={`${NODE_CARD_TYPE} mt-1 text-muted-foreground [--lh-prose-size:var(--text-xs)] [--lh-prose-leading:1.625]`}
@@ -1671,7 +1680,7 @@ export function GraphView({
 					// over home.tsx's drag surface (2026-09-17).
 					className="lh-no-drag absolute z-10 w-80 max-w-[calc(100%-1rem)] rounded-xl border bg-card p-4 text-left shadow-lg"
 				>
-					<NodeCardText name={selected.node.name} statement={selected.node.statement} />
+					<NodeCardText name={selected.node.name} statement={selected.node.statement} verification={selected.node.verification} />
 					{selected.sourceIds.length > 0 ? (
 						<div className="mt-3 flex flex-col gap-1">
 							<div className="text-xs text-muted-foreground">Sessions</div>

@@ -14,6 +14,7 @@ import { useState } from "react";
 import { startDraftSession } from "@/components/new-session";
 import { useReviewPayload } from "@/components/review-payload-hook";
 import { TopBar } from "@/components/top-bar";
+import { VerificationBadge } from "@/components/verification-badge";
 import { REVIEW_SESSION_MAX, type ReviewItem, type ReviewPayload } from "@/src/core";
 
 const DAY = 86_400_000;
@@ -79,7 +80,10 @@ function ItemRow({
 				/>
 			)}
 			<div className="min-w-0 flex-1">
-				<p className="truncate text-sm">{item.name}</p>
+				<div className="flex min-w-0 items-center gap-2">
+						<p className="truncate text-sm">{item.name}</p>
+						<VerificationBadge verification={item.verification} />
+					</div>
 				<p className="line-clamp-2 text-xs text-muted-foreground">{item.statement}</p>
 			</div>
 			<span className="shrink-0 text-xs text-muted-foreground">
