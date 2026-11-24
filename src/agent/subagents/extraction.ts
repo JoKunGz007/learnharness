@@ -742,6 +742,12 @@ export interface ExtractionPipelineDeps extends GraphDeps, ExtractionModels {
 	 *  callers wire the live effective settings (extraction-UX redesign,
 	 *  2026-09-24). */
 	getChunkTokens?: () => number;
+	/** Fork (#806 C): called once a run is admitted, BEFORE its first merge
+	 *  (the verifier's cutoff is ensured here). Failures are logged, never thrown. */
+	onRunStart?: () => void;
+	/** Fork (#806 C): called after every mergeFindings (the verifier trigger;
+	 *  fire-and-forget on the callee's side). Failures are logged, never thrown. */
+	onMerged?: () => void;
 }
 
 /** One notes chunk: its text plus where it sits in the import's text. */
@@ -821,6 +827,10 @@ export function callUsage(usage: Usage): CallUsage {
 
 export function createExtractionPipeline(deps: ExtractionPipelineDeps): ExtractionPipeline {
 	const { chatStore, graphStore } = deps;
+	/** Fork (#806 C): run a verifier hook; it must never break extraction. */
+	const runHook = (name: "onRunStart" | "onMerged"): void => {
+		try { deps[name]?.(); } catch (err) { console.error(`[extraction] ${name} hook failed:`, err); }
+	};
 	// Stage-engine resolution: a direct test value wins; otherwise the
 	// engineFor chain (role override → slot → nothing, resolved FRESH per
 	// stage call server-side) — the job runner's exact treatment. undefined
@@ -1138,6 +1148,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 			// engines AND their providers' keys; a refusal lands BEFORE any
 			// stage runs (typed — the trigger skips, routes surface 503).
 			refuseIfStagesUnready();
+			runHook("onRunStart");
 			const covered = coverageOf(record.messages, graphStore.readCoverage(), chatId);
 			const failedOutputCalls = failedOutputCallIds(record.messages);
 			if (covered.uncovered.length === 0) {
@@ -1215,6 +1226,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 										.filter((slot) => slot.tokens > 0)
 										.map((slot) => ({ chatId, fp: slot.fp, tokens: slot.tokens, foldedAt })),
 								});
+								runHook("onMerged");
 								// The layout ledger evolves with the merge (sync — the
 								// next snapshot fetch must already reflect the new nodes).
 								settleGraphLayout(graphStore);
@@ -1354,6 +1366,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 			// (2026-09-25): same refusal as the chat front door — no
 			// extractor/auditor engines, or a stage key gone, no run.
 			refuseIfStagesUnready();
+			runHook("onRunStart");
 			// CHUNKED like the chat path (owner, 2026-09-28): each chunk is a
 			// standalone extract → audit → merge, so no single call carries a
 			// whole large file. Abort mid-run keeps earlier chunks merged
@@ -1405,6 +1418,7 @@ export function createExtractionPipeline(deps: ExtractionPipelineDeps): Extracti
 									{ chatStore, graphStore },
 									{ foldedAt: input.importedAt, chunk: { importKey: input.importKey, index: chunk.index } },
 								);
+								runHook("onMerged");
 								// Capture the committed merge BEFORE layout/usage can fail.
 								mergedStats.nodes += merged.nodes;
 								mergedStats.chains! += merged.chains ?? 0;

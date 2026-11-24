@@ -2712,3 +2712,41 @@ describe("notes import completion and retry reliability", () => {
 		assert.equal(ledgers.readNodes().length, 2);
 	});
 });
+
+describe("fork (#806 C): verifier hooks", () => {
+	it("chat run: onRunStart fires before the first merge, onMerged after it; a throwing hook never breaks the run", async () => {
+		const { chatId } = fixtureChat();
+		const ledgers = memoryLedgers();
+		const events: string[] = [];
+		const append = ledgers.appendNode;
+		ledgers.appendNode = (n) => { events.push("merge"); append(n); };
+		const pipeline = createExtractionPipeline({
+			chatStore, graphStore: ledgers,
+			extractor: submitModel("submit_findings", FINDINGS), auditor: submitModel("submit_review", { links: [] }),
+			onRunStart: () => { events.push("start"); throw new Error("hook boom"); },
+			onMerged: () => { events.push("merged"); },
+		});
+		const stats = await pipeline.runExtraction(chatId);
+		assert.ok(stats.nodes > 0);
+		assert.equal(events[0], "start");
+		assert.ok(events.indexOf("merge") > 0, "nodes are appended after the start hook");
+		assert.equal(events.at(-1), "merged");
+		assert.equal(events.filter((e) => e === "merged").length, 1);
+	});
+
+	it("notes import: same order, and a refused run (no models) fires neither hook", async () => {
+		const ledgers = memoryLedgers();
+		const events: string[] = [];
+		const append = ledgers.appendNode;
+		ledgers.appendNode = (n) => { events.push("merge"); append(n); };
+		const hooks = { onRunStart: () => void events.push("start"), onMerged: () => void events.push("merged") };
+		await createExtractionPipeline({
+			chatStore, graphStore: ledgers, ...hooks,
+			extractor: submitModel("submit_findings", NOTES_FINDINGS), auditor: submitModel("submit_review", NOTES_VERDICT),
+		}).importNotes({ filePath: "hooks.md", text: NOTES_TEXT });
+		assert.deepEqual(events, ["start", "merge", "merged"]);
+		events.length = 0;
+		await assert.rejects(createExtractionPipeline({ chatStore, graphStore: ledgers, ...hooks }).importNotes({ filePath: "hooks2.md", text: NOTES_TEXT }), ModelsNotConfiguredError);
+		assert.deepEqual(events, []);
+	});
+});

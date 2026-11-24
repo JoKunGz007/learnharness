@@ -334,6 +334,7 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	visualMaker: "vision",
 	pdfReader: "vision",
 	sideQuestion: "strong", // the conversation chain, like prober/teacher (resolveSideQuestionSpec)
+	verifier: "strong", // fork (#806 C): background fact-check, Strong slot
 };
 
 /** General settings — app-level behavior. Version DISPLAY and plans login

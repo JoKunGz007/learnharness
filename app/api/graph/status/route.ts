@@ -8,11 +8,12 @@
  * a missing chat record still reports the run.
  */
 import { chatStore, extractionStatuses } from "@/src/server";
+import { verifierStatus } from "@/src/server/verifier";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-	const runs = extractionStatuses().map((run) => ({
+	const runs: Record<string, unknown>[] = extractionStatuses().map((run) => ({
 		// Unique row id (the registry job key: source id, or "src#i" for
 		// chunk jobs) — one source's rows share chatId, and React keys on
 		// it would collide. chatId stays the SOURCE id: reveal/cost
@@ -32,5 +33,10 @@ export async function GET() {
 		// consumer's (core/prices.ts helpers — nothing stores dollars).
 		usage: run.usage,
 	}));
+	// Fork (#806 C): the background verifier is one more row, phase "verifying"
+	// (the graph view renders `phase` and `title` as given; the empty title keeps
+	// the pill to the single word). `detail` is the step: passage / course / web.
+	const verifying = verifierStatus();
+	if (verifying) runs.push({ id: "verifier", chatId: "verifier", title: "", phase: "verifying", startedAt: verifying.startedAt, usage: {}, detail: verifying.phase });
 	return Response.json({ runs });
 }

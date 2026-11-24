@@ -83,6 +83,7 @@ import {
 } from "../core/input-events.ts";
 import { steerDelivered } from "../core/contracts.ts";
 import type {CallUsage} from "../core/contracts.ts";
+import { verifierExtractionHooks } from "./verifier-deps.ts"; // Fork (#806 C)
 
 /**
  * One chat turn over the server-owned native record. Framework-free (plain
@@ -145,6 +146,9 @@ export const extraction = createExtractionPipeline({
 	// refuses BEFORE any batch runs (the typed throw), never mid-run.
 	providerKeyMissing: (provider, tier) =>
 		providerKeyPresent(provider) ? null : providerKeyMissingEnvelope(provider, [tier]),
+	// Fork (#806 C): cutoff before the first merge, a verification batch after each merge.
+	// Skipped under tests like triggerExtraction: scripted runs are fixtures, not knowledge.
+	...(process.env.NODE_ENV === "test" ? {} : verifierExtractionHooks()),
 });
 
 
