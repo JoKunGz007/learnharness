@@ -214,3 +214,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: those tests build typed fakes; `graph-tools.test.ts` casts, so it doesn't break.
 - Avoid: add the method to all three fakes in the same change.
 - Verify: `npx tsc --noEmit` clean.
+
+## "claude CLI refused a harness tool call before MCP admission" on Haiku 5.5
+- Symptom: a `claude-code` subagent call (notes extractor, verifier) fails with that message (`src/agent/claude-code/stream.ts` ~:698). Seen 2026-11-24 on CLI 2.1.331, Haiku 5.5, dev server: 3 of 6 calls — both first imports after a server start, and one verifier passage check right after a successful extraction. Retrying the import succeeded.
+- Cause: not traced. Likely the model calls a bridge tool while the MCP bridge is still "pending" (the fork accepts pending at init), so the CLI answers the call itself and the stream fails it.
+- Effect: a failed import shows an error; a failed verifier call leaves its group pending (retried next batch).

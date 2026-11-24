@@ -33,13 +33,15 @@ export interface VerifierDeps {
 	allowed(role: "verifier" | "researcher"): boolean;
 	/** The passage text a point anchors to; null = none (no anchor, deleted chat, missing chunk). */
 	passageFor(point: ProvenancePoint): string | null;
-	/** Any stored import or File-access tool to check against at all. */
-	courseSourcesAvailable(): boolean;
+	/** Any stored import (other than the excluded source ids) or File-access tool to check against. */
+	courseSourcesAvailable(excludeSources: string[]): boolean;
 	searchAvailable(): boolean;
 	passageCheck(passage: string, statements: VerifyStatement[]): Promise<VerdictRow<PassageVerdict>[]>;
-	courseCheck(statements: VerifyStatement[], hints: Record<string, string>): Promise<VerdictRow<CourseVerdict>[]>;
+	/** `excludeSources`: the statements' own source ids; their import texts are not independent evidence. */
+	courseCheck(statements: VerifyStatement[], hints: Record<string, string>, excludeSources: string[]): Promise<VerdictRow<CourseVerdict>[]>;
 	research(statements: VerifyStatement[]): Promise<string>;
-	judge(statements: VerifyStatement[], brief: string): Promise<VerdictRow<JudgeVerdict>[]>;
+	/** `hints`: statement id → the course-conflict note, for statements that carry one. */
+	judge(statements: VerifyStatement[], brief: string, hints: Record<string, string>): Promise<VerdictRow<JudgeVerdict>[]>;
 	now(): Date;
 	log(message: string): void;
 }
@@ -56,7 +58,7 @@ export interface BatchSummary {
 	researcherRuns: number;
 }
 
-interface PendingNode { id: string; statement: string; createdAt: string; point: ProvenancePoint | null }
+interface PendingNode { id: string; statement: string; createdAt: string; point: ProvenancePoint | null; sourceIds: string[] }
 interface Group { key: string; point: ProvenancePoint | null; sourceRef: string | null; nodes: PendingNode[] }
 interface VerifierState { running: Promise<BatchSummary> | null; rerun: boolean; phase: VerifierPhase; startedAt: number; warnedOff: boolean }
 
@@ -95,12 +97,18 @@ export function ensureVerifierCutoff(deps: Pick<VerifierDeps, "readCutoff" | "wr
 function pendingNodes(deps: VerifierDeps, since: string): PendingNode[] {
 	const done = new Set(deps.graphStore.readVerification().map((l) => l.nodeId));
 	const byId = new Map<string, GraphNode>();
-	for (const line of deps.graphStore.readNodes()) if (!byId.has(line.id)) byId.set(line.id, line);
+	const sources = new Map<string, Set<string>>(); // every provenance chat/source id per node, across link lines
+	for (const line of deps.graphStore.readNodes()) {
+		if (!byId.has(line.id)) byId.set(line.id, line);
+		const set = sources.get(line.id) ?? new Set<string>();
+		for (const p of line.provenance) set.add(p.chatId);
+		sources.set(line.id, set);
+	}
 	const sinceMs = Date.parse(since);
 	return [...byId.values()]
 		.filter((n) => !done.has(n.id) && Date.parse(n.createdAt) >= sinceMs)
 		.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
-		.map((n) => ({ id: n.id, statement: n.statement, createdAt: n.createdAt, point: n.provenance[0] ?? null }));
+		.map((n) => ({ id: n.id, statement: n.statement, createdAt: n.createdAt, point: n.provenance[0] ?? null, sourceIds: [...(sources.get(n.id) ?? [])] }));
 }
 
 function groupKey(point: ProvenancePoint | null): { key: string; sourceRef: string | null } {
@@ -182,32 +190,44 @@ async function runBatch(deps: VerifierDeps, st: VerifierState): Promise<BatchSum
 
 	// ── 2. course files ──
 	setPhase(st, "course");
-	const inconclusive: Array<{ group: Group; nodes: PendingNode[] }> = [];
-	const haveCourse = deps.courseSourcesAvailable();
+	// `conflict`: the course text contradicts the statement but itself contradicts
+	// well-established knowledge. It goes to the web; with no web step it is recorded doubtful.
+	const inconclusive: Array<{ group: Group; nodes: PendingNode[]; conflicts: Map<string, string> }> = [];
 	for (const f of flagged) {
-		if (!haveCourse) { inconclusive.push({ group: f.group, nodes: f.nodes }); continue; }
+		// The statement's own source import is not independent evidence.
+		const exclude = [...new Set(f.nodes.flatMap((n) => n.sourceIds))];
+		if (!deps.courseSourcesAvailable(exclude)) { inconclusive.push({ group: f.group, nodes: f.nodes, conflicts: new Map() }); continue; }
 		if (!takeStrong()) break;
 		const statements = asStatements(f.nodes);
 		const hints: Record<string, string> = {};
 		f.nodes.forEach((n, i) => { const h = f.hints.get(n.id); if (h) hints[statements[i]!.id] = h; });
 		let rows: Map<string, VerdictRow<CourseVerdict>>;
-		try { rows = rowsById(await deps.courseCheck(statements, hints)); } catch (err) { fail("course-file check", err); continue; }
-		const rest: PendingNode[] = [];
+		try { rows = rowsById(await deps.courseCheck(statements, hints, exclude)); } catch (err) { fail("course-file check", err); continue; }
+		const rest: PendingNode[] = [], conflicts = new Map<string, string>();
 		f.nodes.forEach((node, i) => {
 			const row = rows.get(statements[i]!.id);
 			if (!row) return;
 			if (row.verdict === "verified") write(node, { status: "verified", ...(row.sourceRef ? { sourceRef: row.sourceRef } : {}), ...(row.note ? { note: row.note } : {}) });
 			else if (row.verdict === "corrected" && row.correctedText && !sameText(row.correctedText, node.statement)) {
 				write(node, { status: "corrected", oldText: node.statement, correctedText: row.correctedText, ...(row.sourceRef ? { sourceRef: row.sourceRef } : {}), ...(row.note ? { note: row.note } : {}) });
-			} else rest.push(node);
+			} else {
+				rest.push(node);
+				if (row.verdict === "conflict" && row.note) conflicts.set(node.id, row.note);
+			}
 		});
-		if (rest.length) inconclusive.push({ group: f.group, nodes: rest });
+		if (rest.length) inconclusive.push({ group: f.group, nodes: rest, conflicts });
 	}
 
 	// ── 3. web ──
 	setPhase(st, "web");
-	if (inconclusive.length && deps.allowed("researcher") && deps.searchAvailable()) {
-		for (const { nodes } of inconclusive) {
+	if (inconclusive.length && !(deps.allowed("researcher") && deps.searchAvailable())) {
+		// No web step: a conflict is recorded doubtful with its note; plain inconclusive stays pending.
+		for (const { nodes, conflicts } of inconclusive) for (const node of nodes) {
+			const note = conflicts.get(node.id);
+			if (note) write(node, { status: "doubtful", note });
+		}
+	} else if (inconclusive.length) {
+		for (const { nodes, conflicts } of inconclusive) {
 			if (summary.researcherRuns >= MAX_RESEARCH_RUNS || summary.strongCalls >= MAX_STRONG_CALLS) break;
 			const statements = asStatements(nodes);
 			summary.researcherRuns++;
@@ -216,12 +236,12 @@ async function runBatch(deps: VerifierDeps, st: VerifierState): Promise<BatchSum
 			if (!brief.trim()) continue;
 			if (!takeStrong()) break;
 			let rows: Map<string, VerdictRow<JudgeVerdict>>;
-			try { rows = rowsById(await deps.judge(statements, brief)); } catch (err) { fail("web judgement", err); continue; }
+			try { const hints: Record<string, string> = {}; nodes.forEach((n, i) => { const c = conflicts.get(n.id); if (c) hints[statements[i]!.id] = c; }); rows = rowsById(await deps.judge(statements, brief, hints)); } catch (err) { fail("web judgement", err); continue; }
 			const url = firstUrl(brief);
 			nodes.forEach((node, i) => {
 				const row = rows.get(statements[i]!.id);
 				if (!row) return;
-				const sourceRef = row.sourceRef ?? url, note = row.note;
+				const sourceRef = row.sourceRef ?? url, note = row.note ?? conflicts.get(node.id);
 				const extra = { ...(sourceRef ? { sourceRef } : {}), ...(note ? { note } : {}) };
 				if (row.verdict === "verified") write(node, { status: "verified", ...extra });
 				else if (row.verdict === "corrected" && row.correctedText && !sameText(row.correctedText, node.statement)) {

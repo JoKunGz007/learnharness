@@ -8,7 +8,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { GraphNode, ProvenancePoint, SourceChunksFile, VerificationLine } from "../src/core/contracts/graph.ts";
 import { getGraph } from "../src/core/graph.ts";
-import { searchImportTexts } from "../src/agent/subagents/verifier.ts";
+import {
+	COURSE_INSTRUCTIONS, JUDGE_INSTRUCTIONS, PASSAGE_INSTRUCTIONS, RULES, createSearchImportsTool, searchImportTexts, withoutSources,
+} from "../src/agent/subagents/verifier.ts";
 import {
 	isVerifying, MAX_RESEARCH_RUNS, MAX_STRONG_CALLS, runVerificationBatch, verifierPhase, type VerifierDeps,
 } from "../src/server/verifier.ts";
@@ -375,5 +377,87 @@ describe("verifier hooks and status (#806 C part 2)", () => {
 		const run = runVerificationBatch(f.deps);
 		assert.equal(verifierStatus(), null);
 		await run;
+	});
+});
+
+describe("verifier: own-source exclusion and conflicts", () => {
+	const importFile = (sourceId: string, text: string): SourceChunksFile =>
+		({ sourceId, importKey: "1", importedAt: T0, filePath: `${sourceId}.md`, text, chunks: [{ index: 0, start: 0, end: text.length, lineStart: 1, lineEnd: 1 }] });
+
+	it("the statement's own import is not offered to search_imports", async () => {
+		const files = [importFile("src_own", "Krebs cycle: cytoplasm"), importFile("src_other", "Krebs cycle: matrix")];
+		const kept = withoutSources(files, ["src_own"]);
+		assert.deepEqual(kept.map((f) => f.sourceId), ["src_other"]);
+		const tool = createSearchImportsTool(() => kept);
+		const out = await tool.execute("c1", { query: "krebs" } as never, undefined as never);
+		const text = JSON.stringify(out.content);
+		assert.match(text, /src_other/);
+		assert.doesNotMatch(text, /src_own/);
+	});
+
+	it("the batch passes every provenance source id of the group's nodes as the exclusion", async () => {
+		const own: GraphNode = { ...node("a", AFTER(0), { chatId: "src_own", messageId: "", chunk: { importKey: "1", index: 0 } }), provenance: [
+			{ chatId: "src_own", messageId: "", chunk: { importKey: "1", index: 0 } }, { chatId: "chat9", messageId: "m" },
+		] };
+		let asked: string[] = [], got: string[] = [];
+		const f = fixture([own], {
+			courseSourcesAvailable: (ex) => ((asked = ex), true),
+			courseCheck: async (st, _h, ex) => ((got = ex), st.map((s) => ({ id: s.id, verdict: "inconclusive" as const }))),
+		});
+		f.passages.set("src_own@1#0", "p");
+		f.deps.passageCheck = async (_p, st) => st.map((s) => ({ id: s.id, verdict: "unsupported" as const }));
+		await runVerificationBatch(f.deps);
+		assert.deepEqual(asked.sort(), ["chat9", "src_own"]);
+		assert.deepEqual(got.sort(), ["chat9", "src_own"]);
+	});
+
+	const conflictFixture = () => {
+		const f = fixture([node("a", AFTER(0), chat("m1"), "The Krebs cycle runs in the mitochondrial matrix.")], {
+			passageCheck: async (_p, st) => st.map((s) => ({ id: s.id, verdict: "contradicted" as const })),
+			courseCheck: async (st) => st.map((s) => ({ id: s.id, verdict: "conflict" as const, note: "your notes say cytoplasm; standard sources say matrix" })),
+		});
+		f.passages.set("chat1#m1", "p");
+		return f;
+	};
+
+	it("conflict with no search provider is recorded doubtful with the note", async () => {
+		const f = conflictFixture();
+		f.flags.search = false;
+		const s = await runVerificationBatch(f.deps);
+		assert.deepEqual(f.ledger, [{ nodeId: "a", at: "2026-11-24T12:00:00.000Z", status: "doubtful", note: "your notes say cytoplasm; standard sources say matrix" }]);
+		assert.equal(s.doubtful, 1);
+		assert.equal(f.calls.research, 0);
+	});
+
+	it("conflict with a search provider goes to the web and the judge sees the note", async () => {
+		const f = conflictFixture();
+		let hintsSeen: Record<string, string> = {};
+		f.deps.judge = async (st, _b, hints) => ((hintsSeen = hints), st.map((s) => ({ id: s.id, verdict: "verified" as const, note: "textbooks agree" })));
+		await runVerificationBatch(f.deps);
+		assert.deepEqual(hintsSeen, { s1: "your notes say cytoplasm; standard sources say matrix" });
+		assert.equal(f.ledger[0]?.status, "verified");
+		assert.equal(f.ledger[0]?.sourceRef, "https://example.org/a");
+	});
+
+	it("conflict with the caps exhausted stays pending; plain inconclusive without search stays pending", async () => {
+		const f = conflictFixture();
+		f.flags.researcherAllowed = true;
+		const calls = { research: 0 };
+		f.deps.research = async () => (calls.research++, "brief");
+		// No Strong call left for the judge after passage + course (cap pretend: 2 groups would exceed) — emulate by 10 other groups first.
+		const others = Array.from({ length: MAX_STRONG_CALLS - 2 }, (_, i) => node(`o${i}`, AFTER(i + 1), chat(`x${i}`)));
+		for (let i = 0; i < others.length; i++) f.passages.set(`chat1#x${i}`, "p");
+		f.nodes.push(...others);
+		await runVerificationBatch(f.deps);
+		assert.equal(f.calls.research, 0, "no researcher run once no judge call is left");
+		assert.equal(f.ledger.filter((l) => l.nodeId === "a").length, 0);
+	});
+
+	it("prompts carry the well-established-knowledge guard and the conflict verdict", () => {
+		for (const p of [PASSAGE_INSTRUCTIONS, COURSE_INSTRUCTIONS, JUDGE_INSTRUCTIONS]) assert.match(p, /well-established knowledge/);
+		assert.match(RULES, /Never correct a statement toward a claim that contradicts well-established knowledge/);
+		assert.match(COURSE_INSTRUCTIONS, /conflict:/);
+		assert.match(COURSE_INSTRUCTIONS, /own source is not independent evidence/);
+		assert.match(JUDGE_INSTRUCTIONS, /Prefer doubtful over corrected/);
 	});
 });

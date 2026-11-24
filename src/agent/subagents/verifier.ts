@@ -19,17 +19,18 @@ import type { SourceChunksFile } from "../../core/contracts/graph.ts";
 export interface VerifyStatement { id: string; statement: string }
 
 export type PassageVerdict = "supported" | "contradicted" | "unsupported";
-export type CourseVerdict = "verified" | "corrected" | "inconclusive";
+export type CourseVerdict = "verified" | "corrected" | "inconclusive" | "conflict";
 export type JudgeVerdict = "verified" | "corrected" | "doubtful";
 
 export interface VerdictRow<V extends string> { id: string; verdict: V; correctedText?: string; note?: string; sourceRef?: string }
 
 interface CallOpts { engine?: PiEngine; signal?: AbortSignal; onUsage?: (usage: Usage) => void }
 
-const RULES = `Rules:
+export const RULES = `Rules:
 - Course or passage text outranks your own memory. Use memory only to judge an unsupported claim, and say so in the note.
 - A correction is a MINIMAL edit of the statement: change only what is wrong, keep its wording, scope and any LaTeX ($...$).
 - When unsure, do not correct: return the statement verbatim as correctedText (or pick the non-committal verdict).
+- Never correct a statement toward a claim that contradicts well-established knowledge (standard textbooks, settled science, basic facts), whatever the text you were given says. A source that contradicts well-established knowledge may itself be wrong.
 - Keep every note to one short sentence. Never invent a source.`;
 
 const row = <V extends string>(verdicts: readonly V[], extra: Record<string, ReturnType<typeof Type.Optional>> = {}) =>
@@ -67,6 +68,7 @@ function checkRows<V extends string>(rows: VerdictRow<V>[], statements: readonly
 		if (seen.has(r.id)) return `Statement ${r.id} appears twice.`;
 		seen.add(r.id);
 		if (r.verdict === ("corrected" as string) && !r.correctedText) return `Statement ${r.id} is corrected but has no correctedText.`;
+		if (r.verdict === ("conflict" as string) && !r.note) return `Statement ${r.id} is a conflict but has no note ("your notes say X; standard sources say Y").`;
 	}
 	const missing = [...want].filter((id) => !seen.has(id));
 	return missing.length ? `Missing a result for ${missing.join(", ")}.` : null;
@@ -96,10 +98,11 @@ async function submit<V extends string>(
 
 // ─── 1. passage ──────────────────────────────────────────────────────────────
 
-const PASSAGE_INSTRUCTIONS = `You are a fact-checker inside a learning app. Statements were extracted from one source passage. For each statement decide against THAT PASSAGE ONLY:
+export const PASSAGE_INSTRUCTIONS = `You are a fact-checker inside a learning app. Statements were extracted from one source passage. For each statement decide against THAT PASSAGE ONLY:
 - supported: the passage states or directly implies it.
 - contradicted: the passage says something incompatible. Give correctedText.
 - unsupported: the passage neither says nor implies it (the extractor may have added or distorted it). Give correctedText only if the passage makes the right version obvious.
+If the passage itself states something that contradicts well-established knowledge, say so in the note: a passage can be wrong, and the verdict here is only a flag for the next check.
 Call submit_passage_check once.
 
 ${RULES}`;
@@ -115,10 +118,12 @@ export function verifyAgainstPassage(passage: string, statements: readonly Verif
 
 // ─── 2. course files ─────────────────────────────────────────────────────────
 
-const COURSE_INSTRUCTIONS = `You are a fact-checker inside a learning app. Each statement was flagged: its source passage did not back it up. Check it against the learner's COURSE FILES using your tools (search_imports first; read/grep when present). For each statement:
+export const COURSE_INSTRUCTIONS = `You are a fact-checker inside a learning app. Each statement was flagged: its source passage did not back it up. Check it against the learner's COURSE FILES using your tools (search_imports first; read/grep when present). For each statement:
 - verified: a course file states or directly implies it. Put that file's sourceRef in sourceRef.
-- corrected: a course file contradicts it. Give correctedText and the sourceRef.
-- inconclusive: the files say nothing relevant, or conflict. Do not guess.
+- corrected: a course file contradicts it AND what the file says is consistent with well-established knowledge. Give correctedText and the sourceRef.
+- conflict: a course file contradicts the statement, but the file's claim contradicts well-established knowledge (the statement may be the right one). Never choose corrected here. Put one short sentence in note: "your notes say X; standard sources say Y".
+- inconclusive: the files say nothing relevant, or they disagree with each other. Do not guess.
+Some stored imports are withheld on purpose: the statement's own source is not independent evidence.
 Call submit_course_check once.
 
 ${RULES}`;
@@ -131,7 +136,7 @@ export function verifyAgainstCourseFiles(
 	const hint = (s: VerifyStatement) => (opts.hints?.[s.id] ? `${s.id}: ${s.statement}\n   (why flagged: ${opts.hints[s.id]})` : `${s.id}: ${s.statement}`);
 	return submit<CourseVerdict>({
 		...opts, toolName: "submit_course_check", instructions: COURSE_INSTRUCTIONS, statements, extraTools: tools,
-		schema: row(["verified", "corrected", "inconclusive"] as const, sourceRefProp),
+		schema: row(["verified", "corrected", "inconclusive", "conflict"] as const, sourceRefProp),
 		prompt: `Statements:\n${statements.map(hint).join("\n")}`,
 		neverSubmitted: "The verifier never submitted a course-file check.",
 	});
@@ -149,19 +154,21 @@ export function researchPrompt(statements: readonly VerifyStatement[]): string {
 	].join("\n\n");
 }
 
-const JUDGE_INSTRUCTIONS = `You are a fact-checker inside a learning app. A researcher fact-checked the statements on the web; you receive its brief. Make the final call per statement from the brief (not from memory):
+export const JUDGE_INSTRUCTIONS = `You are a fact-checker inside a learning app. A researcher fact-checked the statements on the web; you receive its brief. Make the final call per statement from the brief (not from memory):
 - verified: the brief's sources confirm it. Put the best source URL in sourceRef.
 - corrected: the sources show it is wrong. Give correctedText and the source URL.
-- doubtful: the sources conflict, are weak, or do not settle it. The learner will see a warning badge.
+- doubtful: the sources conflict, are weak, or do not settle it. The learner will see a warning badge. Prefer doubtful over corrected whenever a correction would contradict well-established knowledge.
+A statement may carry a "course conflict" note: the learner's course text disagreed with it, but the course text may be the wrong one.
 Call submit_web_judgement once.
 
 ${RULES}`;
 
-export function judgeWithBrief(statements: readonly VerifyStatement[], brief: string, opts: CallOpts = {}): Promise<VerdictRow<JudgeVerdict>[]> {
+export function judgeWithBrief(statements: readonly VerifyStatement[], brief: string, opts: CallOpts & { hints?: Readonly<Record<string, string>> } = {}): Promise<VerdictRow<JudgeVerdict>[]> {
+	const line = (s: VerifyStatement) => (opts.hints?.[s.id] ? `${s.id}: ${s.statement}\n   (course conflict: ${opts.hints[s.id]})` : `${s.id}: ${s.statement}`);
 	return submit<JudgeVerdict>({
 		...opts, toolName: "submit_web_judgement", instructions: JUDGE_INSTRUCTIONS, statements,
 		schema: row(["verified", "corrected", "doubtful"] as const, sourceRefProp),
-		prompt: `Statements:\n${listing(statements)}\n\nResearcher's brief:\n"""\n${brief}\n"""`,
+		prompt: `Statements:\n${statements.map(line).join("\n")}\n\nResearcher's brief:\n"""\n${brief}\n"""`,
 		neverSubmitted: "The verifier never submitted a web judgement.",
 	});
 }
@@ -231,3 +238,7 @@ export function createSearchImportsTool(load: () => readonly SourceChunksFile[])
 		}),
 	};
 }
+
+/** The import files that are independent of the given source ids (a statement's own source is no evidence). */
+export const withoutSources = (files: readonly SourceChunksFile[], exclude: readonly string[]): SourceChunksFile[] =>
+	files.filter((f) => !exclude.includes(f.sourceId));

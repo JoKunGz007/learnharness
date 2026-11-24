@@ -12,7 +12,7 @@ import { PATHS, SOURCE_CHUNKS_DIR } from "../../config.ts";
 import type { ModelRole } from "../../config.ts";
 import { piEngineForSpec, type PiEngine } from "../agent/models.ts";
 import { runResearcherAgent } from "../agent/subagents/researcher.ts";
-import { createSearchImportsTool, judgeWithBrief, researchPrompt, verifyAgainstCourseFiles, verifyAgainstPassage } from "../agent/subagents/verifier.ts";
+import { createSearchImportsTool, judgeWithBrief, researchPrompt, verifyAgainstCourseFiles, verifyAgainstPassage, withoutSources } from "../agent/subagents/verifier.ts";
 import { connectionBackgroundAllowed } from "../agent/subscription-connections.ts";
 import { grepTool } from "../agent/tools/grep.ts";
 import { readTool } from "../agent/tools/read.ts";
@@ -100,13 +100,13 @@ export function defaultVerifierDeps(): VerifierDeps {
 		writeCutoff,
 		allowed: roleAllowed,
 		passageFor,
-		courseSourcesAvailable: () => loadImports().length > 0 || Object.keys(fileTools()).length > 0,
+		courseSourcesAvailable: (exclude) => withoutSources(loadImports(), exclude).length > 0 || Object.keys(fileTools()).length > 0,
 		searchAvailable: () => searchProvider() !== null,
 		passageCheck: (passage, statements) => verifyAgainstPassage(passage, statements, { engine: need("verifier") }),
-		courseCheck: (statements, hints) =>
-			verifyAgainstCourseFiles(statements, { search_imports: createSearchImportsTool(loadImports), ...fileTools() }, { engine: need("verifier"), hints }),
+		courseCheck: (statements, hints, exclude) =>
+			verifyAgainstCourseFiles(statements, { search_imports: createSearchImportsTool(() => withoutSources(loadImports(), exclude)), ...fileTools() }, { engine: need("verifier"), hints }),
 		research: (statements) => runResearcherAgent(researchPrompt(statements), { engine: need("researcher"), search: searchProvider }),
-		judge: (statements, brief) => judgeWithBrief(statements, brief, { engine: need("verifier") }),
+		judge: (statements, brief, hints) => judgeWithBrief(statements, brief, { engine: need("verifier"), hints }),
 		now: () => new Date(),
 		log: (message) => console.warn(message),
 	};
