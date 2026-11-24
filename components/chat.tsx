@@ -1791,7 +1791,7 @@ export function Chat({
 					{/* Fork (#806 E2): recall progress, "n of m due". */}
 					{variant === "recall" && (() => {
 						const p = recallProgress(nativeMessages);
-						return p.total > 0 ? <span data-testid="recall-progress" className="pointer-events-none flex shrink-0 select-none items-center text-xs font-medium uppercase tracking-wide text-muted-foreground">{p.current} of {p.total} due</span> : null;
+						return p.total > 0 ? <span data-testid="recall-progress" className="pointer-events-none flex shrink-0 select-none items-center text-xs font-medium uppercase tracking-wide text-muted-foreground">{p.done >= p.total ? `${p.total} of ${p.total} done` : `${p.current} of ${p.total} due`}</span> : null;
 					})()}
 					<PluginSessionTopBarActions readContext={actionContext} captureContext={captureActionContext} refreshRef={refreshPluginActions} />
 				</TopBar>

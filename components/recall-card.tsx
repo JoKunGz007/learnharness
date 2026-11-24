@@ -124,13 +124,20 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 
 	useEffect(() => { if (disputing) inputRef.current?.focus(); }, [disputing]);
 
+	// Owner (2026-11-25): when the card goes live, move focus to it so the keys work
+	// at once; the composer keeps focus after sending otherwise. Clicking the composer
+	// still lets the learner write to the tutor.
+	const cardRef = useRef<HTMLDivElement | null>(null);
+	const keysReady = live && !posting && !recall?.busy && !disputing;
+	useEffect(() => { if (keysReady) cardRef.current?.focus({ preventScroll: true }); }, [keysReady]);
+
 	if (!recall || part.state !== "output-available" || !nodeId) return null;
 	const isLast = latestGradeCallId(messages) === part.toolCallId;
 	const showSummary = !!key && isLast && allGraded(messages, nodeId);
 	const badge = pick?.verification && pick.verification !== "none" ? { status: pick.verification } : undefined;
 
 	return (
-		<div data-testid="recall-card" data-live={live ? "true" : "false"} className="rounded-lg border border-border/60 px-4 py-3 text-sm">
+		<div ref={cardRef} tabIndex={-1} data-testid="recall-card" data-live={live ? "true" : "false"} className="rounded-lg border border-border/60 px-4 py-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring">
 			<p className="text-xs uppercase tracking-widest text-muted-foreground/70">Graded against</p>
 			<div className="mt-1 flex min-w-0 items-start gap-2">
 				<div className="min-w-0 flex-1">
