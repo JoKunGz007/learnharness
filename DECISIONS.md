@@ -20,6 +20,9 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-015 — 2026-11-14 — Re-sent history goes out in fixed 8-message chunks
 - D-016 — 2026-11-18 — Port the upstream triage set; fork fixes to #532, #650 and #689
 - D-017 — 2026-11-22 — Upstream v0.7.0: keep the research budget, take upstream's transcript width
+- D-018 — 2026-11-24 — Mistake analysis checks the background gate before queuing
+- D-019 — 2026-11-24 — Fixes from a review of the fork's claude-code code
+- D-020 — 2026-11-24 — Repo public; share builds as GitHub Releases on the fork
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -151,3 +154,10 @@ Evidence: `tests/mistakes.test.ts` ("Fork: Claude Code with background use off q
 Status: accepted (owner: "fix all, but make sure its real", 2026-11-24).
 Decision: (1) `claudeChildEnv` scrubs names case-insensitively. (2) `src/server/stores.ts` installs the claude-code background gate, since the gate's uninstalled default allows everything and every server route loads `stores.ts`. (3) The Windows native `claude.exe` path is built from `npm_config_prefix` when set. (4) An `LH_CLAUDE_BIN` that is not executable logs one warning per value, then discovery runs as before. (5) `assertOwnWorkspace` refuses the fixed workspace folder on POSIX unless this user owns it and it is not group/world-writable. Not changed: the history `cache_control` marker; it works on the current CLI (`GOTCHAS.md` § `claude -p` processes) and would only break if the CLI changed its own markers.
 Evidence: repros in `.tmp/repro-env.ts`, `.tmp/repro-gate.ts`, `.tmp/repro-bin.ts` (each failed before, passed after); `tests/claude-code-env.test.ts`, `tests/claude-code-binary.test.ts` 15/15; `npx tsc --noEmit` clean.
+
+## D-020 — 2026-11-24 — Repo public; share builds as GitHub Releases on the fork
+Status: accepted (owner made `origin` public to share the app with a friend; owner: "Yes, publish it", "ok rebuild", 2026-11-24).
+Decision: `JoKunGz007/learnharness` is public. Builds for others go out as GitHub Releases on the fork, tagged `v<upstream version>-fork.<n>` (tag name chosen by the session, so it never clashes with upstream's `v<version>` tags), installer attached, notes with install steps (Claude Code + `claude auth login`, SmartScreen, enabling the Claude Code provider). First: `v0.7.0-fork.1`, rebuilt from `7ce0b123` rather than the 22 Nov build, which lacked D-018/D-019 (background gate; an unguarded gate lets background work spend the user's plan).
+Rationale: AGPL-3.0 is satisfied by the public source. Each user signs in to their own Claude Code, so no token is shared (D-001). The README's download links still point to upstream; send people the fork's `/releases/latest` link.
+Consequences: commit author email is public in the history (owner told; not rewritten). Personal context in `CLAUDE.md` and the continuity docs is public too.
+Evidence: `gh repo view` (visibility PUBLIC, license agpl-3.0); `.tmp/release-build.log` (build chain exit 0, `smoke-provider-runtime` and `smoke-server --electron` passed first try); `gh release view v0.7.0-fork.1` (asset `LearnHarness-0.7.0-x64-setup.exe`, 180,999,759 bytes, uploaded; tag at `7ce0b123`).

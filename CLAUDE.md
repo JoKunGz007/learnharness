@@ -4,15 +4,16 @@ Read `AGENTS.md` too: upstream's rules (Next.js 16 differs from training data; *
 
 ## What this is
 
-Personal, private fork of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) (AGPL-3.0-only): an AI tutor (Next.js 16 + Electron, TypeScript) that probes, plans, teaches and practises, with a persistent knowledge graph. LLM calls go through `@earendil-works/pi-ai` / `pi-agent-core`.
+Personal fork (public since 2026-11-24, D-020) of [amosblomqvist/learnharness](https://github.com/amosblomqvist/learnharness) (AGPL-3.0-only): an AI tutor (Next.js 16 + Electron, TypeScript) that probes, plans, teaches and practises, with a persistent knowledge graph. LLM calls go through `@earendil-works/pi-ai` / `pi-agent-core`.
 
 Goal of the fork: run it on the owner's **Claude subscription** (Claude Code login, Pro plan), never an Anthropic API key.
 
 ## Remotes and branches
 
-- `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (private).
+- `upstream` = amosblomqvist/learnharness. `origin` = JoKunGz007/learnharness (public; everything committed, docs included, is world-readable).
 - This branch = upstream 0.7.0 (merged 2026-11-22, D-017) + upstream PRs #163, #139, #127, #532, #650, #666, #689 and the D-016 triage set (all still open upstream except #772, now upstream's own, as is #157) + our fixes (D-009). Sync: `git fetch upstream && git merge upstream/main`.
-- AGPL: if this is ever offered to others over a network, the source must be offered too. Personal use: no obligation.
+- AGPL: if this is ever offered to others over a network, the source must be offered too. The public repo covers that.
+- Sharing builds: GitHub Releases on the fork, tag `v<upstream>-fork.<n>`, installer attached (D-020). `gh release create … --target main` (a short SHA is rejected with 422).
 
 ## Claude subscription backend (upstream's provider + fork patches)
 
