@@ -2,7 +2,9 @@
 
 _The current state only, not a log. Over ~200 lines: move finished entries to `docs/archive/PLAN-<date>.md` and leave a pointer._
 
-## Current checkpoint (2026-11-24)
+## Current checkpoint (2026-11-25)
+
+- **#806 pieces B, C, D built and pushed (2026-11-24/25; D-023; `5bebd273`, `58c00eab`, `74becb8f`, `08c2c068`, `689aa62d`).** Notes/PDF chunk store, background verifier (run live on Haiku 5.5: passage and web checks verified statements; a circular course-file correction was found and fixed), the `alwaysLoad` tool-bridge mitigation, badges in the graph card. Details and what's unverified: § Next 11. Next: piece E (recall loop); show the owner a mock-up of its rating, override and dispute UI first.
 
 - **Welcome-back check; compaction keeps standing instructions (2026-11-24; D-022, `79e01f54`, pushed).** `tests/welcome-back.test.ts` 12/12; welcome-back + compaction + chat-flow 89/89; `npx tsc --noEmit` clean. Live, dev server, `claude-code` Haiku 4.5, `chat_mwg6y3x8_6bcd0108` after 7.7 h: line "Welcome-back check · 8 h since last turn", the tutor's first move a recall `probe` with a skip option; Settings → Agent row on by default. **Not verified:** the new compaction section in a live compaction; either change in the installed app (release `v0.7.0-fork.1` and the installed copy predate D-021 and D-022).
 
