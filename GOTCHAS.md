@@ -23,12 +23,6 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Avoid: once per checkout, `npm run plugins:setup`. Before a bare `next dev`, `npm run plugins:build-core && npm run plugins:build-authoring`. Build the installer with `npm run build`.
 - Verify: `tsc` prints nothing; Flashcards is listed under Core plugins.
 
-## Opening a chat URL directly gives a 500 in `next dev`
-- Symptom: loading or reloading `/chat/<id>` returns 500 with `Cannot add property changed, object is not extensible` at `components/chat.tsx` (`inputViewReader.changed = …`). Opening the same chat from the sidebar works.
-- Cause: upstream 0.6 adds a property to a `useRef` object, and React's development server build seals ref objects (`Object.seal` appears in `react-dom-server.node.development.js`, not in the production file). Seen 2026-11-14; production build not checked.
-- Avoid: in the dev server, open `/` and click the chat. Also restart the dev server after switching branches: it served a session list stuck on "Loading…".
-- Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:3000/chat/<id>` prints 500 while the sidebar route renders.
-
 ## `next build` while `next dev` is running
 - Symptom: a broken or half-written `.next`, or a dev server that dies mid-build.
 - Cause: both use `.next`.
@@ -89,11 +83,12 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Avoid: the fork holds those four readers in `useState(() => ({ current: null }))`. A merge that brings the `useRef` lines back brings the 500 back.
 - Verify: `curl -s -o /dev/null -w "%{http_code}" localhost:3000/chat/new` prints 200.
 - Since 0.7 (2026-11-22) upstream uses `useState` readers itself, so a merge no longer brings the `useRef` lines back.
+- Evidence (2026-11-14): `Object.seal` appears in `react-dom-server.node.development.js`, not in the production file; the sidebar route rendered while a direct load of `/chat/<id>` gave 500 (`inputViewReader.changed = …`); production build not checked. Also: restart the dev server after switching branches: it served a session list stuck on "Loading…".
 
 ## Claude desktop redirects AppData for everything it starts
 - Symptom: the Start-menu app shows "Add a provider key" and Claude as "Connect" while `%APPDATA%\LearnHarness\data` read from a session says enabled; `main.log` seems frozen although the app is running.
 - Cause: Claude desktop is an MSIX app. Processes it starts write `%APPDATA%` into `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming`, and session tools see those files over the real ones. An app opened from Explorer uses the real folder, a separate profile. Shadowed real files can't be read from a session.
-- Avoid: 2026-11-08 the stale copy was renamed to `LearnHarness.bak-2026-11-08` (same Roaming folder), so `%APPDATA%\LearnHarness` read from a session is the real profile again. Keep it that way: never write under it from a session or launch LearnHarness from one; if reads look stale, check whether the Packages copy came back. Launch the app or installer with `explorer.exe <path>` to run outside the container (`/S` can't be passed that way).
+- Avoid: 2026-11-08 the stale copy was renamed to `LearnHarness.bak-2026-11-08` (same Roaming folder), so `%APPDATA%\LearnHarness` read from a session is the real profile again. Keep it that way: never write under it from a session or launch LearnHarness from one; if reads look stale, check whether the Packages copy came back. The `.bak` folder can be deleted when the owner wants. Launch the app or installer with `explorer.exe <path>` to run outside the container (`/S` can't be passed that way).
 - Verify: `logs\main.log` read from a session shows the owner's latest launch, and `...\LocalCache\Roaming\LearnHarness` does not exist.
 
 ## Claude Code's usage line arrives after `message_stop`
@@ -127,14 +122,14 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Verify: `grep -n maxTokens src/agent/claude-code/*.ts`.
 
 ## Triage tools for upstream PRs and issues
-- `gh issue view N` without `--json` fails with a "Projects (classic) deprecated" GraphQL error: use `--json title,body,comments`.
+- `gh issue view N` (with or without `--comments`) fails with a "Projects (classic) deprecated" GraphQL error: use `gh issue view <N> -R amosblomqvist/learnharness --json title,body,comments -q …`.
 - Conflict check without touching the tree: `gh pr diff N > .tmp/prN.diff && git apply --check .tmp/prN.diff`. A plain check can fail where `git apply --3way --check` is clean (CRLF/offsets; #689, #615, #446). `gh pr diff` of a stacked PR contains the whole stack (#772 includes #770 and #771): apply only the top one.
 - `grep -r` from the repo root times out on `node_modules`: scope it to `src`, `app`, `components`, `plugins`.
 - Upstream #760 ("`tex.wasm` missing") is a false alarm for us: rich-code-blocks ships `tex.wasm.gz` by design, present in `dist/win-unpacked` and the installed app (2026-11-18).
 - Parallel subagents writing `.tmp/out.log` overwrite each other: give each its own file.
 - `gh pr view N --comments` fails the same way: use `--json body,comments --jq …`.
 - `git apply --3way` stages what it applies (only conflicted files stay unstaged) and refuses a file with working-tree edits ("does not match index"): commit or apply that file separately (`--include`, `--reject` + hand-merge the `.rej`).
-- The Bash tool turns `\n` inside heredocs and inline scripts into real newlines, and mangles regex backslashes: edit TS with the Edit tool.
+- The Bash tool turns `\n` inside heredocs and inline scripts (a heredoc-fed `python -` script, `printf`) into real newlines, and mangles regex backslashes: edit TS with the Edit tool. It broke the build once (2026-11-25, #806 E1).
 - Bugs about tool blocks sent with no tools list (e.g. #532's closing call) hit only API engines: the `claude-code` engine replays history as labelled text (`src/agent/claude-code/transcript.ts`), never as tool blocks.
 - Upstream CI runs only the root `tests/*` on Ubuntu; `plugins/*/tests` and the Windows unit tests never run there, so Windows-only plugin test failures don't show upstream. Plugin tests: `cd plugins/<name> && npm test`. Skill tests: `python -B -m unittest discover -s tests/skills` (no pytest).
 
@@ -182,12 +177,6 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Avoid: open with `newline=''` and match `\r?\n`, or detect the file's line ending first. Scratch tests outside the repo that junction `node_modules` in: remove the junction with `cmd /c rmdir`, never `rm -rf` (that deletes into the repo's `node_modules`).
 - Verify: `git diff --stat` shows the expected file changed.
 
-## `gh issue view N --comments` fails on upstream
-- Symptom: `gh issue view <N> -R amosblomqvist/learnharness --comments` exits with a GraphQL error about Projects (classic).
-- Cause: gh's default issue view queries the retired Projects-classic field.
-- Avoid: `gh issue view <N> -R amosblomqvist/learnharness --json title,body,comments -q …`.
-- Verify: the `--json` form prints the body and comments.
-
 ## `tsc` reports TS2589 once, then passes
 - Symptom: `npx tsc --noEmit` reports TS2589 ("type instantiation is excessively deep") at `src/core/plugin-view-context.ts:67`; a re-run with identical code is clean.
 - Cause: unknown; seen once (2026-11-24, welcome-back build).
@@ -196,7 +185,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 
 ## Graph statements can't be edited in place
 - Symptom: appending a node line with a new statement for an existing id doesn't change what the graph shows.
-- Cause: `data/graph/nodes.jsonl` is append-only and the first line per id fixes name and statement; later lines only add aliases (`src/core/graph.ts` ~399–422). The API has DELETE only (`app/api/graph/nodes/[id]`).
+- Cause: `data/graph/nodes.jsonl` is append-only and the first line per id fixes name and statement; later lines only add aliases (`src/core/graph.ts` ~429–451). The API has DELETE only (`app/api/graph/nodes/[id]`).
 - Avoid: corrections (D-023) need a separate ledger folded at read time, and `deleteNodeTraces` (`src/core/graph-deletion.ts`) must clear it too.
 - Verify: `getGraph` returns the override text.
 
@@ -217,8 +206,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Verify: `npx tsc --noEmit` clean.
 
 ## "claude CLI refused a harness tool call before MCP admission" on Haiku 5.5
-- Symptom: a `claude-code` subagent call (notes extractor, verifier) fails with that message (`src/agent/claude-code/stream.ts` ~:698). Seen 2026-11-24 on CLI 2.1.331, Haiku 5.5, dev server: 3 of 6 calls — both first imports after a server start, and one verifier passage check right after a successful extraction. Retrying the import succeeded.
-- Cause: not proven. The CLI wrote its own `tool_result` for a prefixed bridge call: unknown tool (bridge not connected yet), a policy denial, or unparseable input. The refusal text is thrown away (`cli-events.ts:203-207` keeps ids only). Most likely the bridge wasn't connected yet: CLI 2.1.331 connects `--mcp-config` servers without waiting unless `MCP_CONNECTION_NONBLOCKING` is false or the entry has `alwaysLoad: true` (strings in `claude.exe`), and the fork accepts "pending" at init (`e457aebb`, since CLI 2.1.326). Not a process or port collision: each subagent run has its own session, process and bridge port.
+- Symptom: a `claude-code` subagent call (notes extractor, verifier) fails with that message (`src/agent/claude-code/stream.ts` ~:704). Seen 2026-11-24 on CLI 2.1.331, Haiku 5.5, dev server: 3 of 6 calls — both first imports after a server start, and one verifier passage check right after a successful extraction. Retrying the import succeeded.
+- Cause: not proven. The CLI wrote its own `tool_result` for a prefixed bridge call: unknown tool (bridge not connected yet), a policy denial, or unparseable input. Before the mitigation below the refusal text was thrown away (`cli-events.ts` ~:203-207 kept ids only; it keeps `texts` now). Most likely the bridge wasn't connected yet: CLI 2.1.331 connects `--mcp-config` servers without waiting unless `MCP_CONNECTION_NONBLOCKING` is false or the entry has `alwaysLoad: true` (strings in `claude.exe`), and the fork accepts "pending" at init (`e457aebb`, since CLI 2.1.326). Not a process or port collision: each subagent run has its own session, process and bridge port.
 - Grepping the 405 MB `claude.exe`: a fixed string plus `.\{N\}` context returns in seconds; a `[^\"]\{0,200\}` pattern times out.
 - Effect: a failed import shows an error; a failed verifier call leaves its group pending (retried next batch).
 - Mitigation 2026-11-24: the bridge entry has `alwaysLoad: true` (`tool-bridge.ts` `toMcpConfig`), and the stream logs `[claude-code] CLI refused a harness tool call: <text>` and `[claude-code] bridge unreachable at init: status=…, missing tools=…`. Live after it, Haiku 5.5: no refusals; 1 of 3 first-imports-after-start failed instead as "could not reach the tool bridge" (before the init log line existed); the next 2 imports and all verifier calls (passage and web) succeeded. If it recurs, read those log lines first.
@@ -230,12 +219,8 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Cause: `next dev` recompiling (Fast Refresh took ~29 s after a stash/pop); the client's first `/api/graph` fetch waits on it. Not a data or render bug.
 - Also: the built-in browser pane must be visible for the canvas to draw; the canvas can't be clicked open reliably by automation, so ask the owner to click a node.
 
-
 ## The name `recall` is taken twice
 A teacher question tool is named `recall` (`src/agent/tools.ts` ~250, `pending.ts` ~58) and practice problems have a `mode: "recall"` (`practice-problems.ts` ~10). #806's recall grading tool and variant need other identifiers in tool names (the chat `variant:"recall"` value is a separate field and fine).
-
-## Bash heredoc + `python -` mangles escaped newlines
-A backslash-n escape inside a string literal in a heredoc-fed `python -` script (or `printf`) becomes a real newline in the written file; in a TS file it broke the build (2026-11-25, #806 E1). Edit such strings with the Edit tool.
 
 ## `POST /api/chats` creates a real session
 Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 2026-11-25, checker probe). Probe chat routes with GET only.
