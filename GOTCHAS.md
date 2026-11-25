@@ -248,4 +248,10 @@ Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 202
 - The rating card takes focus only once the turn settles (~2 s after it appears): a script must wait for `activeElement` to be the card before pressing keys. It doesn't take focus from a composer holding text.
 - The disputed-chip tooltip (Radix) opens only on keyboard focus-visible: `focus()` and clicks don't open it; a Shift press then blur/refocus does.
 - Saved cards keep `data-testid="recall-card"`; the last one also holds the summary ("Recall done…", no "Saved:"). Poll `turnInFlight` from the chat API, not the "thinking" label.
-- In `next dev` right after an edit to `components/chat.tsx`, Start recall took over 10 s to navigate (the `/chat` route recompiles).
+- Start recall takes ~5 s to navigate even in the packaged server (2026-11-25), while `POST /api/chats` and the `/chat/<id>` render each take ~0.25 s: the wait is client-side, in the shared `startDraftSession` → `router.push` path (Start review uses it too). Cause not traced. In `next dev` right after an edit to `components/chat.tsx` it took over 10 s (route recompile).
+
+## The packaged server bundles the repo's `data/` (`build-server` refuses)
+- Symptom: `scripts/build-server.mjs` stops with "standalone contains a data/ directory". `outputFileTracingExcludes` filters only app/pages route traces (`node_modules/next/dist/build/collect-build-traces.js` ~:437); `instrumentation.js.nft.json` is copied unfiltered (`build/utils.js` ~:1183).
+- Cause (2026-11-25): a `path.join(<data dir>, dyn, `${x}.json`)` without `/* turbopackIgnore: true */` makes Turbopack glob every `*.json` in the repo. It was `src/store/graph.ts` `chunkFile` (#806 B, `5bebd273`); fixed, plus the two joins in `src/server/verifier-deps.ts`.
+- Avoid: every data-path join carries `/* turbopackIgnore: true */` on its first argument (see `src/store/chats.ts`). Check after a build: no `"data/` entries outside `node_modules` in `.next/server/instrumentation.js.nft.json`.
+- The same build once failed `smoke-server` with "never answered 200" though the server printed Ready; started by hand it answered in 5 s, and a rerun of the smoke passed. One-off.

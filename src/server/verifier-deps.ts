@@ -60,11 +60,11 @@ export function loadStoredImports(dir: string = SOURCE_CHUNKS_DIR): SourceChunks
 	try { sources = fs.readdirSync(dir); } catch { return out; }
 	for (const sourceId of sources) {
 		let files: string[] = [];
-		try { files = fs.readdirSync(path.join(dir, sourceId)); } catch { continue; }
+		try { files = fs.readdirSync(path.join(/* turbopackIgnore: true */ dir, sourceId)); } catch { continue; }
 		for (const f of files) {
 			if (!f.endsWith(".json")) continue;
 			try {
-				const v = JSON.parse(fs.readFileSync(path.join(dir, sourceId, f), "utf-8")) as Partial<SourceChunksFile>;
+				const v = JSON.parse(fs.readFileSync(path.join(/* turbopackIgnore: true */ dir, sourceId, f), "utf-8")) as Partial<SourceChunksFile>;
 				if (typeof v.text === "string" && Array.isArray(v.chunks)) {
 					out.push({ sourceId, importKey: f.slice(0, -5), importedAt: String(v.importedAt ?? ""), filePath: String(v.filePath ?? ""), text: v.text, chunks: v.chunks });
 				}

@@ -90,7 +90,7 @@ const isString = (v: unknown): v is string => typeof v === "string";
 /** Fork (#806 B): ids that become path segments (sources/<sourceId>/<importKey>.json). */
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const chunkFile = (sourceId: string, importKey: string): string | null =>
-	SAFE_ID.test(sourceId) && SAFE_ID.test(importKey) ? path.join(SOURCE_CHUNKS_DIR, sourceId, `${importKey}.json`) : null;
+	SAFE_ID.test(sourceId) && SAFE_ID.test(importKey) ? path.join(/* turbopackIgnore: true */ SOURCE_CHUNKS_DIR, sourceId, `${importKey}.json`) : null;
 
 /** Strict shape guards — anything not matching a W4 ledger shape is skipped. */
 function readValid<T>(file: string, isValid: (v: unknown) => v is T): T[] {
