@@ -174,6 +174,9 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 						</p>
 					)}
 				</>
+			) : !live && !posting ? (
+				// Owner (2026-11-26): a card a newer question replaced before it was keyed saves no grade.
+				<p data-testid="recall-skipped" className="mt-3 text-xs text-muted-foreground">Skipped · still due</p>
 			) : (
 				<div className="mt-3 flex flex-col gap-2">
 					{!suggested && <p className="text-xs text-muted-foreground">Rate yourself</p>}

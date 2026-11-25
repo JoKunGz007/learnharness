@@ -26,6 +26,7 @@ _Supersede an entry by adding a new one that references it; never edit old entri
 - D-021 — 2026-11-24 — Refuse background jobs at dispatch when background use is off
 - D-022 — 2026-11-24 — Welcome-back check for Teach chats; compaction keeps standing instructions
 - D-023 — 2026-11-24 — #806 recall: one FSRS scheduler, background verifier after extraction
+- D-024 — 2026-11-26 — Un-keyed recall cards read "Skipped · still due"
 
 ## D-001 — 2026-10-26 — Claude via the local Claude Code CLI (upstream PR #151), not an API key or OAuth token
 Status: accepted
@@ -185,3 +186,8 @@ Rationale: both existing schedulers already key on the graph node id, so merging
 Consequences: about 17–21 files. Extraction isn't covered by D-021's dispatch gate (only the `models.ts` in-run backstop), so the verifier needs its own background-use check.
 Evidence: investigator traces 2026-11-24 (this entry's file refs).
 
+## D-024 — 2026-11-26 — Un-keyed recall cards read "Skipped · still due"
+Status: accepted (owner, 2026-11-26), built. Extends D-023 piece E.
+Decision: a recall card that a newer `propose_grade` replaced before the learner pressed a key (they typed instead) shows one muted line, "Skipped · still due", in place of the greyed keys, Dispute and Enter hint (`components/recall-card.tsx`, `data-testid="recall-skipped"`). Rejected: leave as is; hide the keys only; "Not rated".
+Rationale: no grade is saved for such a card (only `recall-grade` markers make review events), so the statement stays due; the old hint promised an Enter that did nothing.
+Evidence: investigator trace 2026-11-26; `npx tsc --noEmit` clean, `tests/recall*` 37/37. Not seen in a browser.
