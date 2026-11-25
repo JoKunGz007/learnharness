@@ -222,6 +222,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Grepping the 405 MB `claude.exe`: a fixed string plus `.\{N\}` context returns in seconds; a `[^\"]\{0,200\}` pattern times out.
 - Effect: a failed import shows an error; a failed verifier call leaves its group pending (retried next batch).
 - Mitigation 2026-11-24: the bridge entry has `alwaysLoad: true` (`tool-bridge.ts` `toMcpConfig`), and the stream logs `[claude-code] CLI refused a harness tool call: <text>` and `[claude-code] bridge unreachable at init: status=…, missing tools=…`. Live after it, Haiku 5.5: no refusals; 1 of 3 first-imports-after-start failed instead as "could not reach the tool bridge" (before the init log line existed); the next 2 imports and all verifier calls (passage and web) succeeded. If it recurs, read those log lines first.
+- 2026-11-25: recurred once in a main tutor turn (not a subagent): the first `propose_grade` turn of a fresh recall chat, Haiku 5.5, dev server; the in-chat Retry succeeded, and the failed attempt's partial text stays in the transcript.
 - Known Windows test failures in `tests/claude-code*.test.ts` before this change: 3 (empty temp cwd, late MCP compatibility error, SIGTERM escalation).
 
 ## Graph view looks empty right after an edit
@@ -238,3 +239,13 @@ A backslash-n escape inside a string literal in a heredoc-fed `python -` script 
 
 ## `POST /api/chats` creates a real session
 Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 2026-11-25, checker probe). Probe chat routes with GET only.
+
+## Two console 503s on any page with a composer
+- `GET /api/stt/token` answers 503 when no `DEEPGRAM_API_KEY` is set; the composer pre-mints a dictation token at mount (`components/dictation.tsx:721`) and swallows the failure, but the browser still logs it. Doubled in `next dev` by Strict Mode. Expected; left as is (2026-11-25).
+
+## Recall chats: record adoption and browser-check traps (#806 E)
+- `syncFromServer` (`components/chat.tsx`) doesn't set messages itself; `readRecord`'s default replace does, and it returns undefined with no error while status is submitted/streaming, an image POST is open, or the read is stale. The grade route's `record-changed` starts a second sync beside `continueTurn`'s; ticket/epoch checks keep one. The saved grade is adopted one GET after the POST; the card's `local` and the summary's `pending` cover that gap (traced 2026-11-25, no bug).
+- The rating card takes focus only once the turn settles (~2 s after it appears): a script must wait for `activeElement` to be the card before pressing keys. It doesn't take focus from a composer holding text.
+- The disputed-chip tooltip (Radix) opens only on keyboard focus-visible: `focus()` and clicks don't open it; a Shift press then blur/refocus does.
+- Saved cards keep `data-testid="recall-card"`; the last one also holds the summary ("Recall done…", no "Saved:"). Poll `turnInFlight` from the chat API, not the "thinking" label.
+- In `next dev` right after an edit to `components/chat.tsx`, Start recall took over 10 s to navigate (the `/chat` route recompiles).

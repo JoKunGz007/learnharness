@@ -27,10 +27,15 @@ export async function POST(req: Request) {
 	// record — the practice agent + its tools from turn 1, no extraction.
 	const kind = body.kind === "practice" ? ("practice" as const) : undefined;
 	// Fork (#806 E): "recall" is a practice-chat variant; anything else is refused.
-	if (body.variant !== undefined && (body.variant !== "recall" || kind !== "practice")) {
+	if (body.variant != null && (body.variant !== "recall" || kind !== "practice")) {
 		return Response.json({ error: 'variant "recall" requires kind "practice"' }, { status: 400 });
 	}
 	const recall = body.variant === "recall";
+	// Review fix: a recall chat with no statements could never be graded.
+	const rawRecallPicks = (body.graphContext as { propositions?: unknown } | undefined)?.propositions;
+	if (recall && !(Array.isArray(rawRecallPicks) && rawRecallPicks.length > 0)) {
+		return Response.json({ error: 'variant "recall" needs graphContext.propositions' }, { status: 400 });
+	}
 	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind, recall ? "recall" : undefined);
 	// PER-SESSION MODELS (owner, 2026-09-28): a session owns its model +
 	// thinking level from birth — stamped verbatim from the STRONG slot,

@@ -68,6 +68,7 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 	const [local, setLocal] = useState<{ key: RecallKey } | null>(null);
 	const [posting, setPosting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [nextError, setNextError] = useState(false); // the grade is saved, the next question failed
 	const [disputing, setDisputing] = useState(false);
 	const [reason, setReason] = useState("");
 	const inputRef = useRef<HTMLInputElement | null>(null);
@@ -96,12 +97,23 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 				setError(res.status === 409 ? "The tutor is still working — try again in a moment." : "Could not save the grade.");
 				return;
 			}
-			setLocal({ key: k });
-			setDisputing(false);
-			// Auto-next: adopt the record, then ask for the next question unless that was the last.
-			await recall.continueTurn(!allGraded(messages, nodeId));
 		} catch {
 			setError("Could not save the grade.");
+			setPosting(false);
+			return;
+		}
+		setLocal({ key: k });
+		setDisputing(false);
+		await next(!allGraded(messages, nodeId));
+	};
+	// Auto-next: adopt the record, then ask for the next question unless that was the last.
+	const next = async (ask: boolean) => {
+		if (!recall) return;
+		setNextError(false);
+		try {
+			await recall.continueTurn(ask);
+		} catch {
+			setNextError(true);
 		} finally {
 			setPosting(false);
 		}
@@ -130,7 +142,13 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 	// still lets the learner write to the tutor.
 	const cardRef = useRef<HTMLDivElement | null>(null);
 	const keysReady = live && !posting && !recall?.busy && !disputing;
-	useEffect(() => { if (keysReady) cardRef.current?.focus({ preventScroll: true }); }, [keysReady]);
+	// Review fix: never take focus from a field the learner is typing in.
+	useEffect(() => {
+		if (!keysReady) return;
+		const el = document.activeElement as HTMLElement | null;
+		if (el && isTextField(el) && ((el as HTMLInputElement).value || el.textContent || "").trim() !== "") return;
+		cardRef.current?.focus({ preventScroll: true });
+	}, [keysReady]);
 
 	if (!recall || part.state !== "output-available" || !nodeId) return null;
 	const isLast = latestGradeCallId(messages) === part.toolCallId;
@@ -147,7 +165,15 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 				</div>
 			</div>
 			{key ? (
-				<p data-testid="recall-saved" className="mt-3 text-sm">{recallSavedText(key, saved?.tutorRating ?? suggested)}</p>
+				<>
+					<p data-testid="recall-saved" className="mt-3 text-sm">{recallSavedText(key, saved?.tutorRating ?? suggested)}</p>
+					{nextError && (
+						<p role="alert" className="mt-1 text-xs text-destructive">
+							Couldn't get the next question.{" "}
+							<button type="button" data-testid="recall-next-retry" disabled={posting || !!recall.busy} onClick={() => void next(!allGraded(messages))} className="underline underline-offset-2 disabled:opacity-50">Retry</button>
+						</p>
+					)}
+				</>
 			) : (
 				<div className="mt-3 flex flex-col gap-2">
 					{!suggested && <p className="text-xs text-muted-foreground">Rate yourself</p>}
