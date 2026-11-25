@@ -161,6 +161,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 - Open chats at `/chat/<id>` (`?chat=` does nothing). `GET /api/chats/<id>/side-chats` lists side threads.
 - A live prompt with no topic ("reply with a mermaid diagram") gets a clarifying question from Haiku: give it a subject.
 - `read_network_requests` lists URLs without methods or statuses, so it can't show `POST /api/chat`'s status; read the turn's usage from `data/chats/<id>.json` instead. `get_page_text` needs `max_chars` 50000 to reach a long chat's newest reply. `read_console_messages` with `onlyErrors` includes load-time HMR / `ERR_CONNECTION_REFUSED` lines after a dev-server restart: read it after the send.
+- The pane opens at ~550x370, so `/review`'s Start recall is off-screen: `resize_window` to 1280x800 first. The computer tool's hover doesn't open the badge/dispute tooltip; focusing the chip does. `innerText` reads off-screen chat cards as empty: use `textContent`. Ref clicks can land off-screen at that size: `scroll_to` the ref first. The chat composer is a contenteditable DIV (aria-label "Ask, answer, or steer the lesson…"), not a textarea. The tab context URL can lag SPA navigation: read `location.pathname` instead.
 - 2026-11-24: the Settings modal once stayed on "Loading settings…" (Providers) while a direct `/api/settings` fetch returned 200; an implementer was editing server files at the time (HMR). Not reproduced.
 
 ## `next build` stops once with a "security vulnerability" error
