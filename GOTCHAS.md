@@ -242,3 +242,20 @@ Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 202
 - Cause (2026-11-25): a `path.join(<data dir>, dyn, `${x}.json`)` without `/* turbopackIgnore: true */` makes Turbopack glob every `*.json` in the repo. It was `src/store/graph.ts` `chunkFile` (#806 B, `5bebd273`); fixed, plus the two joins in `src/server/verifier-deps.ts`.
 - Avoid: every data-path join carries `/* turbopackIgnore: true */` on its first argument (see `src/store/chats.ts`). Check after a build: no `"data/` entries outside `node_modules` in `.next/server/instrumentation.js.nft.json`.
 - The same build once failed `smoke-server` with "never answered 200" though the server printed Ready; started by hand it answered in 5 s, and a rerun of the smoke passed. One-off.
+
+## Tab never moves focus in the app
+- Symptom: a script (or keyboard user) pressing Tab stays on the same element on every page; badge tooltips' source links are unreachable by Tab.
+- Cause: upstream design. `captureKeyDown` in `components/interaction-layers.tsx` ~:362 calls `preventDefault` on every Tab; plain Tab cycles text fields instead (`lh:kbd-cycle-fields`, `components/keyboard-shortcuts.tsx` ~:71, owner keyboard round 2026-10-06 upstream).
+- Avoid: in checks, `focus()` an element after a Shift press (it then matches `:focus-visible` and the custom tooltip opens). Don't report "can't tab to X" as a fork bug.
+- Verify: a capture-phase keydown listener sees `defaultPrevented: true` for Tab (`.tmp/pw/tab_probe2.py`, 2026-11-26).
+
+## Browser checks without the browser pane: Python Playwright
+- Remote Control sessions have no browser pane; `require('playwright')` fails in Node, but Python `playwright` with Chromium works (`from playwright.sync_api import sync_playwright`; Chromium 156, 2026-11-26).
+- `python -I` ignores `PYTHONIOENCODING`, and the console is cp874: print JSON with `ensure_ascii=True` or write results to a UTF-8 file. Write scripts with the Write tool, not a heredoc (backslashes and quotes break).
+- Chat pages never reach `networkidle` (EventSource): `goto(wait_until="load")`, then wait for a selector. A copied chat file with a new `id` redirects to the original id: edit the original in place (backup, restore).
+
+## `next dev` reload loop after two dev servers shared `.next`
+- Symptom: in `next dev`, `/chat/<id>` and `/review` reload every few seconds (198 navigations in ~45 s for one chat); each cycle logs `✓ Compiled in ~14ms` then the page's GETs again. Playwright fails with "Execution context was destroyed". Earlier the same session: `Jest worker encountered 2 child process exceptions` and 500s for `/api/plugins/flashcards/assets/*`, and every chat API 500.
+- Cause: not traced. It began after a second `npm run dev` started (port 3001) while the first still ran; the loop stayed after both were killed and one fresh server started. No app code calls `location.reload`.
+- Also: stopping a background `npm run dev` task leaves the `next` child (`start-server.js`) running on Windows; find and kill it via `Get-CimInstance Win32_Process` filtered on `learnharness` + `next`.
+- Next step: stop all repo node processes, `rm -rf .next`, start one `npm run dev`, then retest; if it still loops, trace the HMR trigger (watcher on a written file).
