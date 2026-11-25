@@ -57,6 +57,15 @@ export function scheduledGrade(tutor: RecallRating | undefined, key: RecallKey):
 	return tutor && ORDER[tutor] < ORDER[key] ? tutor : key;
 }
 
+/** The saved line on the card. Owner (2026-11-25): when the schedule counts a lower
+ *  grade than the key (lower of two), show both: "Saved: Good · counted: Hard". */
+export function recallSavedText(key: RecallKey, tutor: RecallRating | undefined): string {
+	if (key === "dispute") return "Disputed";
+	const cap = (r: RecallRating) => r[0]!.toUpperCase() + r.slice(1);
+	const counted = scheduledGrade(tutor, key);
+	return counted && counted !== key ? `Saved: ${cap(key)} · counted: ${cap(counted)}` : `Saved: ${cap(key)}`;
+}
+
 /** The latest key per statement (a retried statement keeps its last). */
 function lastPerNode(messages: readonly LhMessage[], pending?: SavedGrade): Map<string, SavedGrade> {
 	const byNode = new Map<string, SavedGrade>();

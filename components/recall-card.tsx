@@ -23,6 +23,7 @@ import {
 	nextDueAt,
 	recallKeyAction,
 	recallPicksOf,
+	recallSavedText,
 	recallSummary,
 	savedGradesOf,
 	type ArtifactPartProps,
@@ -146,7 +147,7 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 				</div>
 			</div>
 			{key ? (
-				<p data-testid="recall-saved" className="mt-3 text-sm">{key === "dispute" ? "Disputed" : `Saved: ${LABEL[key]}`}</p>
+				<p data-testid="recall-saved" className="mt-3 text-sm">{recallSavedText(key, saved?.tutorRating ?? suggested)}</p>
 			) : (
 				<div className="mt-3 flex flex-col gap-2">
 					{!suggested && <p className="text-xs text-muted-foreground">Rate yourself</p>}

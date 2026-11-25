@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { newGraphContextMessage, newRecallGradeMessage, RECALL_GRADE_TOOL, type GraphContextPick, type LhMessage, type RecallKey } from "../src/core/native-messages.ts";
-import { allGraded, latestDispute, latestUnansweredCardId, nextDueAt, recallKeyAction, recallProgress, recallSummary, savedGradesOf, scheduledGrade } from "../src/core/recall-view.ts";
+import { allGraded, latestDispute, latestUnansweredCardId, nextDueAt, recallKeyAction, recallProgress, recallSavedText, recallSummary, savedGradesOf, scheduledGrade } from "../src/core/recall-view.ts";
 import { call } from "./review-fixtures.ts";
 
 const T0 = Date.UTC(2026, 0, 1);
@@ -55,6 +55,17 @@ describe("scheduledGrade", () => {
 		assert.equal(scheduledGrade("hard", "good"), "hard");
 		assert.equal(scheduledGrade(undefined, "good"), "good");
 		assert.equal(scheduledGrade("good", "dispute"), null);
+	});
+});
+
+describe("recallSavedText", () => {
+	it("shows the counted grade only when it is lower than the key", () => {
+		assert.equal(recallSavedText("good", "hard"), "Saved: Good · counted: Hard");
+		assert.equal(recallSavedText("hard", "again"), "Saved: Hard · counted: Again");
+		assert.equal(recallSavedText("hard", "good"), "Saved: Hard");
+		assert.equal(recallSavedText("good", "good"), "Saved: Good");
+		assert.equal(recallSavedText("good", undefined), "Saved: Good");
+		assert.equal(recallSavedText("dispute", "good"), "Disputed");
 	});
 });
 
