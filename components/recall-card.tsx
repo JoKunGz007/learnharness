@@ -41,6 +41,11 @@ export function recallHint(pick: RecallRating): string {
 		: `Enter accepts ${LABEL[pick]}. Picking higher still schedules ${LABEL[pick]} (lower of the two).`;
 }
 
+/** Fork (D-024): an un-keyed card reads "Skipped" only once a newer clean grade call replaced it. */
+export function showSkipped(live: boolean, posting: boolean, latestId: string | null, toolCallId: string): boolean {
+	return !live && !posting && !!latestId && latestId !== toolCallId;
+}
+
 function isTextField(el: EventTarget | null): boolean {
 	const t = el as HTMLElement | null;
 	return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
@@ -95,6 +100,7 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 			});
 			if (!res.ok) {
 				setError(res.status === 409 ? "The tutor is still working — try again in a moment." : "Could not save the grade.");
+					setPosting(false); // Fork: re-enable the keys so "try again" works
 				return;
 			}
 		} catch {
@@ -174,7 +180,8 @@ export function RecallGradeCard({ part }: ArtifactPartProps) {
 						</p>
 					)}
 				</>
-			) : !live && !posting ? (
+			) : showSkipped(live, posting, latestGradeCallId(messages), part.toolCallId) ? (
+					// Fork: only when a newer clean call replaced this card; a brand-new card not yet live keeps the key row.
 				// Owner (2026-11-26): a card a newer question replaced before it was keyed saves no grade.
 				<p data-testid="recall-skipped" className="mt-3 text-xs text-muted-foreground">Skipped · still due</p>
 			) : (

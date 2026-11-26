@@ -99,7 +99,9 @@ function listAllJobs(): JobRecord[] {
 			.readdirSync(/* turbopackIgnore: true */ JOBS_DIR)
 			.filter((f) => f.endsWith(".json"))
 			.map((f) => getJob(f.slice(0, -5)))
-			.filter((j): j is JobRecord => j !== null)
+			// Fork: a malformed record (no string chatId/updatedAt, or a non-object JSON
+			// value) is dropped here so it can't throw in the sort and empty every chat.
+			.filter((j): j is JobRecord => !!j && typeof j === "object" && typeof j.chatId === "string" && typeof j.updatedAt === "string")
 			.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 	} catch {
 		return [];

@@ -279,6 +279,7 @@ describe("job store", () => {
 
 		// Fork: listAllJobs spans chats, newest first; listJobs still filters.
 		const other = jobStore.createJob({ kind: "research", chatId: "chat_other", toolCallId: "call-other" });
+		trackJob(other.id);
 		jobStore.updateJob(other.id, { updatedAt: "2999-01-01T00:00:00.000Z" });
 		const all = jobStore.listAllJobs();
 		assert.ok(all.some((j) => j.id === job.id) && all.some((j) => j.id === other.id), "listAllJobs spans chats");
@@ -289,6 +290,22 @@ describe("job store", () => {
 		const byTool = jobStore.findJobByToolCallId("chat_storetest", "call-store");
 		assert.equal(byTool?.id, job.id);
 		assert.equal(jobStore.findJobByToolCallId("chat_storetest", "call-missing"), null);
+	});
+
+	// Fork: one malformed record must not empty every chat's list (D-025 review).
+	it("listJobs survives a malformed job file", () => {
+		const good = jobStore.createJob({ kind: "research", chatId: "chat_malformed", toolCallId: "call-good" });
+		trackJob(good.id);
+		const bad = path.join(JOBS_DIR, "job_bad_malformed.json");
+		try {
+			fs.writeFileSync(bad, '{"id":"job_bad","chatId":"chat_x"}');
+			fs.writeFileSync(path.join(JOBS_DIR, "job_bad_empty.json"), "{}");
+			fs.writeFileSync(path.join(JOBS_DIR, "job_bad_num.json"), "42");
+			assert.ok(jobStore.listJobs("chat_malformed").some((j) => j.id === good.id));
+			assert.equal(jobStore.listJobs("chat_x").length, 0, "the malformed record is skipped");
+		} finally {
+			for (const f of ["job_bad_malformed", "job_bad_empty", "job_bad_num"]) fs.rmSync(path.join(JOBS_DIR, `${f}.json`), { force: true });
+		}
 	});
 
 	// ── push-architecture S4 (2026-10-02): every WRITE announces on the
