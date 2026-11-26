@@ -173,7 +173,7 @@ _Repeatable, non-obvious traps only. Each: symptom / cause / avoidance / verific
 
 ## Scripted conflict resolution misses CRLF files
 - Symptom: a Python/sed fix for conflict markers or a test edit reports nothing replaced, or an `assert old in s` fails, although the text is visibly there.
-- Cause: many files here are CRLF (`core.autocrlf=true`); patterns with `\n` don't match `\r\n`.
+- Cause: many files here are CRLF (`core.autocrlf=true`); patterns with `\n` don't match `\r\n`. Endings are mixed (e.g. `src/server/jobs.ts` LF, `tests/jobs.test.ts` CRLF), and the Edit tool can fail to match a multi-line `old_string` in CRLF files: use single-line anchors.
 - Avoid: open with `newline=''` and match `\r?\n`, or detect the file's line ending first. Scratch tests outside the repo that junction `node_modules` in: remove the junction with `cmd /c rmdir`, never `rm -rf` (that deletes into the repo's `node_modules`).
 - Verify: `git diff --stat` shows the expected file changed.
 
@@ -270,3 +270,9 @@ Even an empty `{}` body makes an "Untitled session" in the dev `data/` (seen 202
 - Fork fix (D-025): one `listAllJobs()` pass grouped by chat; app code ~60 ms after. Upstream merges touching `listJobs`/`activityFeed`/`recoverStaleJobs` will conflict there.
 - 21 of 97 dev job records say `running` (likely stale orphans).
 - A new required `JobStore` member (`src/core/ports.ts`) breaks the typed fakes in `tests/plugin-background-tools.test.ts` and `tests/web-search.test.ts`.
+
+## Render tests of `.tsx` components need the React shim
+- Symptom: a new `tests/*.test.tsx` using `renderToStaticMarkup` fails with `React is not defined`.
+- Cause: tsx runs the classic JSX transform.
+- Avoid: set `globalThis.React` as `tests/render-cards.test.tsx` does (also `tests/recall-card.test.tsx`).
+- Verify: the test file passes alone with `NODE_ENV=test npx tsx --test`.
