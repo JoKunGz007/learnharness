@@ -55,6 +55,7 @@ function memoryJobs(): JobStore {
 		getJob(id) { return structuredClone(jobs.get(id) ?? null); },
 		updateJob(id, patch) { const job = jobs.get(id); if (!job) return null; jobs.set(id, { ...job, ...structuredClone(patch) }); return this.getJob(id); },
 		listJobs(chatId) { return [...jobs.values()].filter((job) => job.chatId === chatId).map((job) => structuredClone(job)); },
+		listAllJobs() { return [...jobs.values()].map((job) => structuredClone(job)); },
 		findJobByToolCallId(chatId, toolCallId) { return this.listJobs(chatId).find((job) => job.toolCallId === toolCallId) ?? null; },
 		deleteJobsForChat(chatId) { const list = this.listJobs(chatId); for (const job of list) jobs.delete(job.id); return list.length; },
 	};

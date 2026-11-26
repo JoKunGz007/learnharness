@@ -191,3 +191,9 @@ Status: accepted (owner, 2026-11-26), built. Extends D-023 piece E.
 Decision: a recall card that a newer `propose_grade` replaced before the learner pressed a key (they typed instead) shows one muted line, "Skipped · still due", in place of the greyed keys, Dispute and Enter hint (`components/recall-card.tsx`, `data-testid="recall-skipped"`). Rejected: leave as is; hide the keys only; "Not rated".
 Rationale: no grade is saved for such a card (only `recall-grade` markers make review events), so the statement stays due; the old hint promised an Enter that did nothing.
 Evidence: investigator trace 2026-11-26; `npx tsc --noEmit` clean, `tests/recall*` 37/37. Not seen in a browser.
+
+## D-025 — 2026-11-26 — Fork fix: one pass over `data/jobs/` for the activity feed and stale-job sweep
+Status: accepted (owner, 2026-11-26), built.
+Decision: `jobStore.listAllJobs()` reads the jobs folder once; `activityFeed` (via `listJobsByChat`) and `recoverStaleJobs` (via `jobsByChat`) group it by chat instead of calling `listJobs` per chat (`src/store/jobs.ts`, `src/server/jobs.ts`, `src/server/observability.ts`, `JobStore` in `src/core/ports.ts`; marked `Fork:`). Output order and the listed-chats rule unchanged. Rejected: porting upstream PR #882 (mtime cache, still stats every file per chat, ~0.9 s here), both, leaving it.
+Rationale: the per-chat scan was O(chats × jobs) sync reads (154 × 97 = 14.9k, 1.6 s) and blocked every other request, including Start recall's navigation (GOTCHAS § `/api/activity`).
+Evidence: `npx tsc --noEmit` clean; jobs, activity-feed, job-delivery-recovery, job-write-integration, plugin-background-tools, web-search, graph-tools, store-delete-leftovers 150/150. Dev server: `/api/activity` app code 1.6–1.8 s → ~60 ms; Start recall click → URL 2.2 s → 0.71 s, composer 2.4 s → 0.94 s (`.tmp/pw/recall_timing.py`). Candidate to offer upstream (#881).

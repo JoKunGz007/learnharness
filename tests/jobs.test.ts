@@ -277,6 +277,15 @@ describe("job store", () => {
 		assert.ok(listed.some((j) => j.id === job.id));
 		assert.equal(jobStore.listJobs("chat_other").some((j) => j.id === job.id), false, "jobs are scoped to their chat");
 
+		// Fork: listAllJobs spans chats, newest first; listJobs still filters.
+		const other = jobStore.createJob({ kind: "research", chatId: "chat_other", toolCallId: "call-other" });
+		jobStore.updateJob(other.id, { updatedAt: "2999-01-01T00:00:00.000Z" });
+		const all = jobStore.listAllJobs();
+		assert.ok(all.some((j) => j.id === job.id) && all.some((j) => j.id === other.id), "listAllJobs spans chats");
+		assert.ok(all.findIndex((j) => j.id === other.id) < all.findIndex((j) => j.id === job.id), "newest first");
+		assert.deepEqual(jobStore.listJobs("chat_other").map((j) => j.id), all.filter((j) => j.chatId === "chat_other").map((j) => j.id));
+		assert.equal(jobStore.listJobs("chat_storetest").some((j) => j.id === other.id), false);
+
 		const byTool = jobStore.findJobByToolCallId("chat_storetest", "call-store");
 		assert.equal(byTool?.id, job.id);
 		assert.equal(jobStore.findJobByToolCallId("chat_storetest", "call-missing"), null);

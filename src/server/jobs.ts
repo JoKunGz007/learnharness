@@ -779,8 +779,9 @@ export function recoverStaleJobs(): void {
 	if (now - s.lastSweepAt < SWEEP_THROTTLE_MS) return;
 	s.lastSweepAt = now;
 	try {
-		for (const chat of stores.chatStore.listChats()) {
-			for (const job of stores.jobStore.listJobs(chat.id)) {
+		// Fork: one pass over data/jobs, not one per chat (O(chats × jobs) sync reads blocked the event loop ~1.6 s; upstream #881).
+		for (const chatJobs of jobsByChat(stores.chatStore.listChats().map((c) => c.id)).values()) {
+			for (const job of chatJobs) {
 				if (isJobLive(job.id)) continue; // never re-run beside live computation
 				if (!stores.chatStore.getChat(job.chatId)) continue;
 				if (isTurnRunning(job.chatId)) continue;
@@ -809,6 +810,19 @@ export function recoverStaleJobs(): void {
 	} catch (err) {
 		console.error("[jobs] stale-job recovery sweep failed:", err);
 	}
+}
+
+/** Fork: jobs grouped by chat in the given chat order (one store read); jobs of unlisted chats are dropped, per-chat order stays newest-first. */
+export function jobsByChat(chatIds: string[]): Map<string, JobRecord[]> {
+	const groups = new Map<string, JobRecord[]>(chatIds.map((id) => [id, []]));
+	for (const job of stores.jobStore.listAllJobs()) groups.get(job.chatId)?.push(job);
+	return groups;
+}
+
+/** Fork: the /api/activity entry — runs the lazy sweep once, then groups every chat's jobs from one read. */
+export function listJobsByChat(chatIds: string[]): Map<string, JobRecord[]> {
+	if (process.env.NODE_ENV !== "test") recoverStaleJobs();
+	return jobsByChat(chatIds);
 }
 
 /** The /api/jobs entry: job list for the client poll (+ lazy recovery). */
