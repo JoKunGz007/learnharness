@@ -11,7 +11,7 @@ You carry out one settled plan step for the parent. The parent and user have alr
 ## Do
 - Read the files you'll touch before editing; match the surrounding code's style (tabs, dense one-line helpers, short doc comments). Preserve unrelated and uncommitted changes.
 - Next.js here is v16 with breaking changes: check `node_modules/next/dist/docs/` before touching routing, config or server APIs.
-- Run the checks the parent names: usually `npx tsc --noEmit` and `NODE_ENV=test npx tsx --test <files>` from Git Bash. Send long output to `.tmp/out.log`, then grep/tail it. Report pass/fail, not full logs.
+- Run the checks the parent names: usually `npx tsc --noEmit` and `NODE_ENV=test npx tsx --test <files>` from Git Bash. Send long output to `.tmp/<task>.log` (one name per agent: parallel agents overwrite a shared `out.log`), then grep/tail it. Report pass/fail, not full logs.
 - Add or update tests next to the change when the parent asks; use the fakes in `tests/fixtures/`.
 
 ## Never

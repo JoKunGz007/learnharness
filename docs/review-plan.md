@@ -1,9 +1,11 @@
 # 计划：复习功能
-> 状态：第一期（最小版，第 1–9 节）已实现并验证。第二期（降噪规则，第 10–16 节）的设计决定已全部确定，尚未实现。
+Status: Historical (design log; both phases built in `87a6e5a9`, D-005; current behaviour: `docs/architecture.md` § Review, recall events and disputes: D-023), checked 2026-11-27
+
+> 状态：第一期（最小版，第 1–9 节）和第二期（降噪规则，第 10–16 节）均已实现（`87a6e5a9`）。
 > 
 > 术语：本文统一使用「节点」指图谱中的命题，与界面用词一致；代码标识符（如 `proposition`、`graphContext.propositions`）保持原样。
 
-调查依据：`src/agent/tools/practice.ts`、`src/core/native-messages.ts`（`problemInputForConclude`）、`src/core/question-core.ts`、`app/api/chats/route.ts`、`components/new-session.tsx`、`src/store/graph.ts`、`src/core/ports.ts`、`docs/architecture.md` §7、`docs/vision.md`。
+调查依据：`src/agent/tools/practice.ts`、`src/core/native-messages.ts`（`problemInputForConclude`）、`src/core/question-core.ts`、`app/api/chats/route.ts`、`components/new-session.tsx`、`src/store/graph.ts`、`src/core/ports.ts`、`docs/architecture.md` § Review (fork addition)、`docs/archive/vision.md`。
 
 * * *
 # 第一期：最小版
@@ -19,11 +21,11 @@
 
 因此复习信号只来自带 `target` 的练习题。只在练习里出现过的节点才会进入复习。
 
-本机 `data/` 中没有练习会话（143 个 chat 里 practice 为 0，图谱节点为 0），无法用真实数据估计信号量；以上结论来自代码。
+（2026-10 设计时）本机 `data/` 中没有练习会话（143 个 chat 里 practice 为 0，图谱节点为 0），无法用真实数据估计信号量；以上结论来自代码。
 ## 3. 设计约束
-1. `docs/architecture.md` §7 写明 `spaced repetition…stays parked`，并规定 grading 不向图谱写入任何内容。这是上游作者的裁决。本 fork 有意推翻其中关于复习的部分，但保留其原则：复习状态不写进节点，图谱仍是纯世界模型。
+1. 上游 `docs/architecture.md`（当时的 §7）写明 `spaced repetition…stays parked`，并规定 grading 不向图谱写入任何内容。这是上游作者的裁决。本 fork 有意推翻其中关于复习的部分，但保留其原则：复习状态不写进节点，图谱仍是纯世界模型。
   
-2. `docs/vision.md` 规定 understanding 只推断、不编码，派生状态不存储，事件账本是事实来源。因此复习状态从事件派生，不存储一个会过期的数字。
+2. `docs/archive/vision.md` 规定 understanding 只推断、不编码，派生状态不存储，事件账本是事实来源。因此复习状态从事件派生，不存储一个会过期的数字。
   
 3. 分层规则：`src/core` 是纯函数，不能导入 `agent`、`server`、`store`。调度算法放在 core。
   
@@ -89,7 +91,7 @@ FSRS 的评级为 Again、Hard、Good、Easy。映射只看 `outcome` 和 `rung`
 | `src/core/index.ts` | 导出 payload 与事件类型 |
 | `src/server/review.ts`（新）、`app/api/review/route.ts`（新） | 读取所有 practice chat，调用 core，提供 `GET` |
 | `components/review-*.tsx`、`components/sidebar.tsx`、`app/review/page.tsx` | 列表页与侧边栏入口 |
-| `docs/architecture.md` §7 | 说明复习状态派生自练习事件，不写入图谱 |
+| `docs/architecture.md` § Review (fork addition) | 说明复习状态派生自练习事件，不写入图谱 |
 | `tests/review*.test.ts*`、`tests/render-review.test.tsx` | 表驱动测试 |
 ## 6. 验证方式
 - core 全部是确定性单测，不联网，不用真实时钟。
@@ -107,7 +109,7 @@ FSRS 的评级为 Again、Hard、Good、Easy。映射只看 `outcome` 和 `rung`
   
 - 教学会话 quiz 进入复习：需要先把 quiz 与图谱节点对齐，是独立问题。
   
-- 闪卡：`docs/code-practice-plan.md` 已写明是独立计划。
+- 闪卡：`docs/code-practice-plan.md` 已写明是独立计划（该文件属于来源 fork MasteryHarness，未随移植进入本仓库）。
   
 ## 8. 第一期决定汇总
 | 问题  | 决定  |
@@ -119,7 +121,7 @@ FSRS 的评级为 Again、Hard、Good、Easy。映射只看 `outcome` 和 `rung`
 | Q-Easy | 不使用 Easy：`solved` 且无提示或只用 R0–R1 都算 Good |
 | Q5 入口 | 侧边栏独立 Review 页 |
 | Q6 节点上限 | 默认 8 个，页面中可手动调整 |
-| Q7 架构文档 | 在 `docs/architecture.md` §7 加说明，明确推翻 `parked` |
+| Q7 架构文档 | 在 `docs/architecture.md` § Review (fork addition) 加说明，明确推翻 `parked` |
 | 会话文字 | 标题与第一条消息为 `Review: 节点名列表` |
 ## 9. 第一期实施顺序（已完成）
 1. `src/core/review-events.ts` 与测试。
@@ -130,7 +132,7 @@ FSRS 的评级为 Again、Hard、Good、Easy。映射只看 `outcome` 和 `rung`
   
 4. Review 页、侧边栏入口、渲染测试，接入 `startDraftSession`。
   
-5. `docs/architecture.md` §7 说明；运行 `tsc`、`lint`、`test`，并在真实应用中验证。
+5. `docs/architecture.md` § Review (fork addition) 说明；运行 `tsc`、`lint`、`test`，并在真实应用中验证。
   
 
 * * *
@@ -237,7 +239,7 @@ FSRS 的评级为 Again、Hard、Good、Easy。映射只看 `outcome` 和 `rung`
 | `src/core/review.ts` | `gradeOf` 实现 R1；`foldReviews` 的重放改为带 `pending` 的状态机（第 14 节）；`NodeReview` 增加 `verifying: boolean` |
 | `src/core/review-payload.ts`、`components/review-view.tsx` | `ReviewItem` 增加 `verifying`；到期行在 `verifying` 时标注「待再次确认」 |
 | `tests/review*.test.ts*` | R1 覆盖每种 `missClass`；R2 覆盖首次失败、同会话后续事件被忽略、之后成功封顶 Hard、之后失败被确认、新节点（稳定度 < 7 天）不受影响、稳定度恰为 7 天的边界、同日重复复习不使节点变为「已稳固」 |
-| `docs/architecture.md` §7 | 补充评级规则 R1、R2 |
+| `docs/architecture.md` § Review (fork addition) | 补充评级规则 R1、R2 |
 ## 16. 第二期决定汇总
 | 问题  | 决定  |
 | --- | --- |
